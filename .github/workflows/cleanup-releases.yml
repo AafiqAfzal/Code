@@ -1,0 +1,33 @@
+name: Cleanup old releases
+
+# Ruční úklid: smaže vydání a tagy uvedené ve vstupu (výchozí v1.0.0–v1.4.0).
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: Tagy vydání ke smazání (oddělené mezerou)
+        default: v1.0.0 v1.1.0 v1.2.0 v1.3.0 v1.4.0
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Delete releases and tags
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for t in ${{ github.event.inputs.tags }}; do
+            if gh release view "$t" >/dev/null 2>&1; then
+              gh release delete "$t" --cleanup-tag --yes && echo "deleted release+tag $t"
+            elif git ls-remote --tags origin "refs/tags/$t" | grep -q "$t"; then
+              git push origin ":refs/tags/$t" && echo "deleted tag $t"
+            else
+              echo "nothing to delete for $t"
+            fi
+          done
+          echo "remaining tags:"; git ls-remote --tags origin
