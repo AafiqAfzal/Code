@@ -1,0 +1,116 @@
+import { useLiveQuery } from 'dexie-react-hooks'
+import { useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { Printer } from 'lucide-react'
+import { db } from '../db/schema'
+import { useCategories, useClasses, useGroups, useScale, useSettings, useStudents, useSubjects } from '../components/hooks'
+import { PageHeader } from '../components/ui'
+import { NOTE_KINDS, fmtDate, fullName, todayISO } from '../lib/format'
+import { effectiveGrade, percentOf, proposedGrade, weightedAverage } from '../lib/grading'
+
+export function PrintReportPage() {
+  const [params, setParams] = useSearchParams()
+  const settings = useSettings()
+  const subjects = useSubjects()
+  const groups = useGroups()
+  const classes = useClasses()
+  const students = useStudents()
+  const categories = useCategories()
+  const scale = useScale()
+  const groupId = Number(params.get('groupId')) || undefined
+  const onlyStudentId = Number(params.get('studentId')) || undefined
+  const subjectId = Number(params.get('subjectId')) || groups.find((g) => g.id === groupId)?.subjectId || settings?.defaultSubjectId || subjects[0]?.id
+  const [opts, setOpts] = useState({ grades: true, absence: true, notes: false, evaluation: true, signature: true })
+  const [dateFrom, setDateFrom] = useState(settings?.yearStart ?? '2026-09-01')
+  const group = groups.find((g) => g.id === groupId)
+  const roster = useMemo(() => {
+    const base = group ? students.filter((s) => group.studentIds.includes(s.id)) : onlyStudentId ? students.filter((s) => s.id === onlyStudentId) : []
+    return onlyStudentId ? base.filter((s) => s.id === onlyStudentId) : base
+  }, [group, onlyStudentId, students])
+  const ids = roster.map((s) => s.id)
+  const data = useLiveQuery(async () => {
+    if (!ids.length || !subjectId) return null
+    const assessments = (await db.assessments.where('subjectId').equals(subjectId).toArray()).filter((a) => ids.includes(a.studentId) && a.date >= dateFrom)
+    const logs = (await db.lessonLogs.toArray()).filter((l) => l.date >= dateFrom && (groupId ? l.groupId === groupId : true))
+    const notes = (await db.studentNotes.toArray()).filter((n) => ids.includes(n.studentId) && n.date >= dateFrom)
+    const evals = (await db.termEvaluations.toArray()).filter((e) => ids.includes(e.studentId) && e.subjectId === subjectId)
+    return { assessments, logs, notes, evals }
+  }, [ids.join(','), subjectId, dateFrom, groupId])
+  const subject = subjects.find((s) => s.id === subjectId)
+  const catName = (id: number) => categories.find((c) => c.id === id)?.name ?? ''
+
+  return (
+    <div>
+      <div className="no-print">
+        <PageHeader title="Tisk pro rodiče" subtitle="Přehled hodnocení, absence a poznámek – jedna stránka na žáka" actions={
+          <button className="btn-primary" disabled={!roster.length} onClick={() => window.print()}><Printer size={16} /> Tisknout ({roster.length})</button>
+        } />
+        <div className="card card-body mb-4 flex flex-wrap items-end gap-3">
+          <div><div className="label">Skupina</div>
+            <select className="input w-auto" value={groupId ?? ''} onChange={(e) => setParams({ groupId: e.target.value })}><option value="">—</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select></div>
+          <div><div className="label">Předmět</div>
+            <select className="input w-auto" value={subjectId ?? ''} onChange={(e) => setParams({ ...Object.fromEntries(params), subjectId: e.target.value })}>{subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+          <div><div className="label">Jen žák</div>
+            <select className="input w-auto" value={onlyStudentId ?? ''} onChange={(e) => setParams({ ...Object.fromEntries(params), studentId: e.target.value })}><option value="">všichni ve skupině</option>{(group ? students.filter((s) => group.studentIds.includes(s.id)) : students).map((s) => <option key={s.id} value={s.id}>{fullName(s)}</option>)}</select></div>
+          <div><div className="label">Od data</div><input type="date" className="input w-auto" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} /></div>
+          <div className="flex flex-wrap gap-3 text-sm pb-1">
+            {([['grades', 'známky'], ['absence', 'absence'], ['evaluation', 'slovní hodnocení'], ['notes', 'poznámky (pochvaly, napomenutí)'], ['signature', 'podpis rodiče']] as const).map(([k, l]) => (
+              <label key={k} className="flex items-center gap-1"><input type="checkbox" checked={opts[k]} onChange={(e) => setOpts({ ...opts, [k]: e.target.checked })} /> {l}</label>
+            ))}
+          </div>
+        </div>
+        {!roster.length && <div className="card card-body text-sm text-slate-500">Vyberte skupinu nebo žáka.</div>}
+      </div>
+
+      {data && roster.map((s) => {
+        const mine = data.assessments.filter((a) => a.studentId === s.id).sort((a, b) => a.date.localeCompare(b.date))
+        const avg = weightedAverage(mine, scale)
+        const absences = data.logs.filter((l) => l.absentStudentIds.includes(s.id))
+        const notes = data.notes.filter((n) => n.studentId === s.id).sort((a, b) => a.date.localeCompare(b.date))
+        const cls = classes.find((c) => c.id === s.classId)
+        return (
+          <div key={s.id} className="card card-body mb-4 print:mb-0 print:border-0 print:shadow-none print:break-after-page text-sm">
+            <div className="flex items-start justify-between border-b border-slate-300 pb-2 mb-3">
+              <div>
+                <div className="text-lg font-bold">{fullName(s)} <span className="font-normal text-slate-500">· {cls?.name ?? ''}</span></div>
+                <div className="text-slate-600">{subject?.name} · {settings?.schoolYear} · {settings?.schoolName}</div>
+              </div>
+              <div className="text-right text-xs text-slate-500">Vyučující: {settings?.teacherName}<br />Vytištěno {fmtDate(todayISO())} · období od {fmtDate(dateFrom)}</div>
+            </div>
+            {opts.grades && (
+              <section className="mb-3">
+                <h3 className="font-semibold mb-1">Průběžné hodnocení</h3>
+                {mine.length === 0 ? <p className="text-slate-500">Zatím bez známek.</p> : (
+                  <table className="table text-xs">
+                    <thead><tr><th>Datum</th><th>Hodnocení</th><th>Kategorie</th><th className="text-center">Váha</th><th className="text-center">Výsledek</th></tr></thead>
+                    <tbody>{mine.map((a) => <tr key={a.id}><td>{fmtDate(a.date)}</td><td>{a.title}{a.note ? <span className="text-slate-400"> – {a.note}</span> : ''}</td><td>{catName(a.categoryId)}</td><td className="text-center">{a.weight}</td><td className="text-center font-bold">{a.absent ? 'N' : effectiveGrade(a, scale)}{percentOf(a) != null && !a.absent ? <span className="font-normal text-slate-500"> ({a.points}/{a.maxPoints}, {percentOf(a)} %)</span> : ''}</td></tr>)}</tbody>
+                  </table>
+                )}
+                {avg != null && <p className="mt-1">Vážený průměr: <b>{avg}</b> · odpovídá známce <b>{proposedGrade(avg)}</b></p>}
+              </section>
+            )}
+            {opts.absence && (
+              <section className="mb-3">
+                <h3 className="font-semibold mb-1">Absence v předmětu</h3>
+                <p>{absences.length} z {data.logs.length} zapsaných hodin{absences.length > 0 && <span className="text-slate-500"> ({absences.map((l) => fmtDate(l.date, 'd.M.')).join(', ')})</span>}</p>
+              </section>
+            )}
+            {opts.evaluation && data.evals.filter((e) => e.studentId === s.id && (e.text || e.proposedGrade)).map((e) => (
+              <section key={e.id} className="mb-3">
+                <h3 className="font-semibold mb-1">Slovní hodnocení – {e.term}. pololetí{e.proposedGrade ? ` (návrh známky ${e.proposedGrade})` : ''}</h3>
+                <p className="whitespace-pre-wrap">{e.text}</p>
+              </section>
+            ))}
+            {opts.notes && notes.length > 0 && (
+              <section className="mb-3">
+                <h3 className="font-semibold mb-1">Poznámky</h3>
+                <ul className="list-disc pl-5">{notes.map((n) => <li key={n.id}>{fmtDate(n.date)} · {NOTE_KINDS[n.kind].label}: {n.text}</li>)}</ul>
+              </section>
+            )}
+            {opts.signature && <div className="mt-8 flex justify-between text-xs text-slate-500"><span>Podpis vyučujícího: ________________________</span><span>Podpis zákonného zástupce: ________________________</span></div>}
+          </div>
+        )
+      })}
+    </div>
+  )
+}

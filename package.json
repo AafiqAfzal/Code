@@ -1,0 +1,106 @@
+{
+  "name": "pedagogicky-denik",
+  "private": true,
+  "version": "1.5.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "electron:dev": "vite build && electron .",
+    "electron:build": "vite build && electron-builder --win",
+    "electron:build:linux": "vite build && electron-builder --linux"
+  },
+  "dependencies": {
+    "date-fns": "^4.4.0",
+    "dexie": "^4.4.5",
+    "dexie-react-hooks": "^4.4.0",
+    "electron-updater": "^6.8.9",
+    "lucide-react": "^1.39.0",
+    "mammoth": "^1.12.2",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.3",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.1.0",
+    "electron": "^44.1.1",
+    "electron-builder": "^26.15.3",
+    "oxlint": "^1.79.0",
+    "playwright": "^1.62.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "~6.0.2",
+    "vite": "^8.2.2"
+  },
+  "description": "Pedagogický deník pro učitele ZŠ",
+  "author": "",
+  "main": "electron/main.cjs",
+  "build": {
+    "appId": "cz.skola.pedagogicky-denik",
+    "productName": "Pedagogický deník",
+    "artifactName": "PedagogickyDenik-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "build/icon.png"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Pedagogický deník",
+      "artifactName": "PedagogickyDenik-Setup-${version}.${ext}",
+      "language": "1029"
+    },
+    "portable": {
+      "artifactName": "PedagogickyDenik-Portable-${version}.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Education",
+      "icon": "build/icon.png"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "build/icon.png"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "AafiqAfzal",
+      "repo": "Code",
+      "releaseType": "release"
+    }
+  }
+}

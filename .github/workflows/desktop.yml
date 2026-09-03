@@ -1,0 +1,61 @@
+name: Desktop app (Windows installer)
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Read version
+        id: v
+        shell: bash
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Ensure release tag exists
+        shell: bash
+        run: |
+          TAG="v${{ steps.v.outputs.version }}"
+          if git ls-remote --tags origin "refs/tags/$TAG" | grep -q "$TAG"; then
+            echo "Tag $TAG already exists"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
+      # Publikování nechá na kroku níže (paralelní nahrávání electron-builderem
+      # občas selže na „release already exists“); latest.yml se přesto vygeneruje.
+      - run: npx electron-builder --win --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PedagogickyDenik-windows
+          path: |
+            release/*.exe
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.v.outputs.version }}
+          name: Pedagogický deník ${{ steps.v.outputs.version }}
+          body: |
+            **Instalace (Windows):** stáhněte `PedagogickyDenik-Setup-${{ steps.v.outputs.version }}.exe` a spusťte. Nepotřebuje práva správce, vytvoří ikonu na ploše.
+            **Bez instalace:** `PedagogickyDenik-Portable-${{ steps.v.outputs.version }}.exe` stačí spustit.
+
+            Nainstalovaná aplikace se na tuto verzi aktualizuje sama (Nastavení → Aktualizace aplikace).
+
+            Windows může zobrazit varování SmartScreen (aplikace není podepsaná certifikátem) – klikněte na „Další informace“ → „Přesto spustit“.
+          files: |
+            release/*.exe
+            release/latest.yml
+            release/*.blockmap
