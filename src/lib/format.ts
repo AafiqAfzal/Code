@@ -22,6 +22,25 @@ export function genderClass(g?: 'M' | 'F') {
 }
 export const GENDER_LABEL: Record<string, string> = { M: 'chlapec', F: 'dívka' }
 
+/** Věk v letech k dnešnímu dni. */
+export function ageFrom(birthISO?: string): number | undefined {
+  if (!birthISO) return undefined
+  const b = new Date(birthISO); if (isNaN(b.getTime())) return undefined
+  const t = new Date()
+  let age = t.getFullYear() - b.getFullYear()
+  if (t.getMonth() < b.getMonth() || (t.getMonth() === b.getMonth() && t.getDate() < b.getDate())) age--
+  return age
+}
+/** Kolik dní zbývá do narozenin (0 = dnes). */
+export function daysToBirthday(birthISO?: string): number | undefined {
+  if (!birthISO) return undefined
+  const b = new Date(birthISO); if (isNaN(b.getTime())) return undefined
+  const t = new Date(); t.setHours(0, 0, 0, 0)
+  let next = new Date(t.getFullYear(), b.getMonth(), b.getDate())
+  if (next < t) next = new Date(t.getFullYear() + 1, b.getMonth(), b.getDate())
+  return Math.round((next.getTime() - t.getTime()) / 86400000)
+}
+
 export const collator = new Intl.Collator('cs')
 export function byName(a: Student, b: Student) {
   return collator.compare(a.lastName, b.lastName) || collator.compare(a.firstName, b.firstName)

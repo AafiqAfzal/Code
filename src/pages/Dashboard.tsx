@@ -6,7 +6,7 @@ import { db } from '../db/schema'
 import { loadDemoData } from '../db/seed'
 import { useClasses, useGroups, useSettings, useStudents, useSubjects } from '../components/hooks'
 import { Badge, EmptyState, PageHeader } from '../components/ui'
-import { EVENT_KINDS, fmtDate, lessonRange, todayISO } from '../lib/format'
+import { EVENT_KINDS, daysToBirthday, ageFrom, fmtDate, lessonRange, todayISO } from '../lib/format'
 import { collectReminders } from '../lib/reminders'
 import { scheduleForDate } from '../lib/schedule'
 import { holidayName, schoolHolidayName } from '../lib/holidays'
@@ -41,6 +41,7 @@ export function Dashboard() {
   const subjectIdOf = (e: { subjectId?: number }) => e.subjectId ?? settings?.defaultSubjectId ?? subjects[0]?.id ?? ''
   const studentName = (id: number) => { const s = students.find((x) => x.id === id); return s ? `${s.lastName} ${s.firstName}` : '' }
   const isEmpty = classes.length === 0 && students.length === 0
+  const birthdays = students.map((s) => ({ s, d: daysToBirthday(s.birthDate) })).filter((x) => x.d != null && x.d <= 7).sort((a, b) => a.d! - b.d!)
 
   return (
     <div>
@@ -72,6 +73,12 @@ export function Dashboard() {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+      {birthdays.length > 0 && (
+        <div className="card card-body mb-4 border-pink-200 bg-pink-50 text-sm">
+          <span className="font-semibold text-pink-900 mr-2">🎂 Narozeniny</span>
+          {birthdays.map(({ s, d }) => <span key={s.id} className="mr-3"><Link to={`/zaci/${s.id}`} className="font-medium text-pink-900 hover:underline">{s.firstName} {s.lastName}</Link> <span className="text-pink-700">({className(s.classId)}) {d === 0 ? `dnes · ${(ageFrom(s.birthDate) ?? 0)} let` : d === 1 ? 'zítra' : `za ${d} dní`}</span></span>)}
         </div>
       )}
       <div className="grid gap-4 md:grid-cols-4 mb-4">

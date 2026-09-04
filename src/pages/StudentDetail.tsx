@@ -5,7 +5,7 @@ import { ArrowLeft, Plus } from 'lucide-react'
 import { db, type Student, type StudentNoteKind } from '../db/schema'
 import { useCategories, useClasses, useGroups, useScale, useSettings, useSubjects } from '../components/hooks'
 import { Badge, ConfirmButton, Field, PageHeader } from '../components/ui'
-import { GENDER_LABEL, NOTE_KINDS, fmtDate, fullName, genderClass, todayISO } from '../lib/format'
+import { GENDER_LABEL, NOTE_KINDS, ageFrom, daysToBirthday, fmtDate, fullName, genderClass, todayISO } from '../lib/format'
 import { GRADE_COLORS, avgColor, effectiveGrade, percentOf, proposedGrade, weightedAverage } from '../lib/grading'
 import { termRange } from '../lib/terms'
 
@@ -87,7 +87,7 @@ export function StudentDetail() {
               </div>
             ) : (
               <dl className="grid grid-cols-[110px_1fr] gap-y-1">
-                <dt className="text-slate-500">Narozen/a</dt><dd>{fmtDate(student.birthDate) || '—'}</dd>
+                <dt className="text-slate-500">Narozen/a</dt><dd>{fmtDate(student.birthDate) || '—'}{ageFrom(student.birthDate) != null && <span className="text-slate-500"> · {ageFrom(student.birthDate)} let</span>}{daysToBirthday(student.birthDate) === 0 && <span className="ml-1 badge bg-pink-100 text-pink-800">🎂 dnes má narozeniny</span>}{(daysToBirthday(student.birthDate) ?? 99) > 0 && (daysToBirthday(student.birthDate) ?? 99) <= 7 && <span className="ml-1 badge bg-pink-50 text-pink-700">narozeniny za {daysToBirthday(student.birthDate)} d.</span>}</dd>
                 <dt className="text-slate-500">Občanství</dt><dd>{student.citizenship || '—'}</dd>
                 <dt className="text-slate-500">Pohlaví</dt><dd>{student.gender ? GENDER_LABEL[student.gender] : '—'}</dd>
                 <dt className="text-slate-500">Skupiny</dt><dd>{myGroups.map((g) => g.name).join(', ') || '—'}</dd>
