@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Download, Plus, Search } from 'lucide-react'
 import { db, type Student } from '../db/schema'
 import { useClasses, useGroups, useStudents } from '../components/hooks'
-import { Badge, EmptyState, Field, Modal, PageHeader } from '../components/ui'
+import { Badge, ColorDot, EmptyState, Field, Modal, PageHeader } from '../components/ui'
 import { fullName, genderClass } from '../lib/format'
 import { exportStudentsXlsx } from '../lib/export'
 
@@ -67,7 +67,7 @@ export function StudentsPage() {
                   <td><Link to={`/zaci/${s.id}`} className={`font-medium hover:underline ${genderClass(s.gender)}`}>{fullName(s)}</Link></td>
                   <td>{className(s.classId)}</td>
                   <td className="text-slate-400">{s.catalogNumber ?? ''}</td>
-                  <td className="space-x-1">{groupsOf(s.id).map((g) => <Badge key={g.id} className="bg-slate-100 text-slate-700" style={{ borderLeft: `3px solid ${g.color ?? '#94a3b8'}` }}>{g.name}</Badge>)}</td>
+                  <td className="space-x-1">{groupsOf(s.id).map((g) => <Badge key={g.id} className="bg-slate-100 text-slate-700"><ColorDot color={g.color} /> <span className="ml-1">{g.name}</span></Badge>)}</td>
                   <td className="space-x-1">{s.tags.map((t) => <button key={t} onClick={() => setTag(t)} className="badge bg-purple-100 text-purple-800 hover:bg-purple-200" title="Filtrovat podle štítku">{t}</button>)}</td>
                   <td className="text-slate-500 max-w-xs truncate">{s.note}</td>
                 </tr>
