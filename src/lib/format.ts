@@ -47,7 +47,7 @@ export const NOTE_KINDS: Record<string, { label: string; color: string }> = {
 export const LESSON_RANGES: (readonly [string, string] | null)[] = [
   null,
   ['8:00', '8:45'], ['8:50', '9:35'], ['9:50', '10:35'], ['10:45', '11:30'], ['11:40', '12:25'],
-  ['12:35', '13:20'], ['13:25', '14:10'], ['14:15', '15:00'], ['15:05', '15:50'],
+  ['12:35', '13:20'], ['13:30', '14:15'], ['14:25', '15:10'], ['15:20', '16:05'],
 ]
 export const LESSON_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 /** Začátek hodiny, např. "8:00". */
