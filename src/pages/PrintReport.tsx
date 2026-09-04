@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { Printer } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { ArrowLeft, Printer } from 'lucide-react'
 import { db } from '../db/schema'
 import { useCategories, useClasses, useGroups, useScale, useSettings, useStudents, useSubjects } from '../components/hooks'
 import { PageHeader } from '../components/ui'
@@ -42,7 +42,8 @@ export function PrintReportPage() {
   return (
     <div>
       <div className="no-print">
-        <PageHeader title="Tisk pro rodiče" subtitle="Přehled hodnocení, absence a poznámek – jedna stránka na žáka" actions={
+        <Link to={onlyStudentId ? `/zaci/${onlyStudentId}` : '/tridy'} className="btn-ghost btn-sm mb-2"><ArrowLeft size={14} /> Zpět</Link>
+        <PageHeader title="Podklady na schůzku s rodiči" subtitle="Přehled hodnocení, absence a poznámek – jedna stránka na žáka" actions={
           <button className="btn-primary" disabled={!roster.length} onClick={() => window.print()}><Printer size={16} /> Tisknout ({roster.length})</button>
         } />
         <div className="card card-body mb-4 flex flex-wrap items-end gap-3">

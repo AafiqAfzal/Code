@@ -55,7 +55,7 @@ export function StudentDetail() {
       <PageHeader title={fullName(student)} subtitle={`${cls?.name ?? 'bez třídy'}${student.catalogNumber ? ` · č. ${student.catalogNumber}` : ''}${student.active ? '' : ' · neaktivní'}`} actions={
         <>
           <button className="btn-secondary" onClick={() => setEdit({ ...student })}>Upravit profil</button>
-          <Link className="btn-secondary" to={`/tisk?studentId=${student.id}${myGroups[0] ? `&groupId=${myGroups[0].id}` : ''}`}>Tisk pro rodiče</Link>
+          <Link className="btn-primary" to={`/tisk?studentId=${student.id}${myGroups[0] ? `&groupId=${myGroups[0].id}` : ''}`}>Podklady na schůzku s rodiči</Link>
           <ConfirmButton className="btn-danger" onConfirm={async () => { await db.students.delete(student.id); await db.studentNotes.where('studentId').equals(student.id).delete(); await db.assessments.where('studentId').equals(student.id).delete(); navigate('/zaci') }}>Smazat žáka</ConfirmButton>
         </>
       } />

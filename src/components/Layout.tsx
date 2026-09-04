@@ -1,27 +1,36 @@
-import { NavLink, Outlet } from 'react-router-dom'
-import { LayoutDashboard, CalendarDays, School, Users, UserRound, ClipboardList, BookOpenCheck, ListChecks, Clock, Upload, Settings as SettingsIcon, ExternalLink, Menu, CalendarCheck, Printer, Armchair } from 'lucide-react'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { LayoutDashboard, CalendarDays, School, Users, UserRound, ClipboardList, BookOpenCheck, ListChecks, Clock, Settings as SettingsIcon, ExternalLink, Menu, CalendarCheck } from 'lucide-react'
 import { useState } from 'react'
 import { useSettings } from './hooks'
 
-const NAV = [
-  { to: '/', label: 'Přehled', icon: LayoutDashboard, end: true },
-  { to: '/kalendar', label: 'Kalendář', icon: CalendarDays },
-  { to: '/tridy', label: 'Třídy a skupiny', icon: School },
-  { to: '/zaci', label: 'Žáci', icon: UserRound },
-  { to: '/hodnoceni', label: 'Hodnocení', icon: ClipboardList },
-  { to: '/zapisy', label: 'Zápisy z hodin', icon: BookOpenCheck },
-  { to: '/dochazka', label: 'Docházka', icon: CalendarCheck },
-  { to: '/plany', label: 'Tematické plány', icon: ListChecks },
-  { to: '/rozvrh', label: 'Rozvrh', icon: Clock },
-  { to: '/zasedaci', label: 'Zasedací pořádek', icon: Armchair },
-  { to: '/tisk', label: 'Tisk pro rodiče', icon: Printer },
-  { to: '/import', label: 'Import dat', icon: Upload },
-  { to: '/nastaveni', label: 'Nastavení', icon: SettingsIcon },
+interface NavItem { to: string; label: string; icon: typeof LayoutDashboard; end?: boolean; also?: string[] }
+interface NavGroup { title?: string; items: NavItem[] }
+
+const NAV: NavGroup[] = [
+  { items: [
+    { to: '/', label: 'Přehled', icon: LayoutDashboard, end: true },
+    { to: '/rozvrh', label: 'Rozvrh', icon: Clock },
+    { to: '/kalendar', label: 'Kalendář', icon: CalendarDays },
+  ] },
+  { title: 'Žáci a třídy', items: [
+    { to: '/zaci', label: 'Žáci', icon: UserRound, also: ['/tisk'] },
+    { to: '/tridy', label: 'Třídy a skupiny', icon: School, also: ['/zasedaci'] },
+  ] },
+  { title: 'Výuka', items: [
+    { to: '/hodnoceni', label: 'Hodnocení', icon: ClipboardList },
+    { to: '/zapisy', label: 'Zápisy z hodin', icon: BookOpenCheck },
+    { to: '/dochazka', label: 'Docházka', icon: CalendarCheck },
+    { to: '/plany', label: 'Tematické plány', icon: ListChecks },
+  ] },
+  { items: [
+    { to: '/nastaveni', label: 'Nastavení', icon: SettingsIcon, also: ['/import'] },
+  ] },
 ]
 
 export function Layout() {
   const settings = useSettings()
   const [open, setOpen] = useState(false)
+  const { pathname } = useLocation()
   return (
     <div className="flex h-full">
       <aside className={`no-print fixed inset-y-0 left-0 z-40 w-60 transform bg-blue-900 text-blue-100 transition-transform md:static md:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
@@ -32,15 +41,23 @@ export function Layout() {
             <div className="text-xs text-blue-300">{settings?.schoolYear ?? ''}</div>
           </div>
         </div>
-        <nav className="p-2 space-y-0.5 overflow-y-auto max-h-[calc(100vh-120px)]">
-          {NAV.map(({ to, label, icon: Icon, end }) => (
-            <NavLink key={to} to={to} end={end} onClick={() => setOpen(false)}
-              className={({ isActive }) => `flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm ${isActive ? 'bg-blue-700 text-white font-medium' : 'hover:bg-blue-800 text-blue-100'}`}>
-              <Icon size={17} /> {label}
-            </NavLink>
+        <nav className="p-2 overflow-y-auto max-h-[calc(100vh-120px)]">
+          {NAV.map((group, gi) => (
+            <div key={gi} className={gi > 0 ? 'mt-3 border-t border-blue-800 pt-2' : ''}>
+              {group.title && <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-blue-400">{group.title}</div>}
+              {group.items.map(({ to, label, icon: Icon, end, also }) => {
+                const extra = also?.some((p) => pathname.startsWith(p)) ?? false
+                return (
+                  <NavLink key={to} to={to} end={end} onClick={() => setOpen(false)}
+                    className={({ isActive }) => `flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm ${isActive || extra ? 'bg-blue-700 text-white font-medium' : 'hover:bg-blue-800 text-blue-100'}`}>
+                    <Icon size={17} /> {label}
+                  </NavLink>
+                )
+              })}
+            </div>
           ))}
           <a href={settings?.skolaOnlineUrl || 'https://aplikace.skolaonline.cz'} target="_blank" rel="noreferrer"
-            className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-blue-100 hover:bg-blue-800 mt-2 border-t border-blue-800 pt-3">
+            className="flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm text-blue-100 hover:bg-blue-800 mt-3 border-t border-blue-800 pt-3">
             <ExternalLink size={17} /> Škola online
           </a>
         </nav>
@@ -56,6 +73,20 @@ export function Layout() {
           <Outlet />
         </div>
       </main>
+    </div>
+  )
+}
+
+/** Záložky Nastavení / Import dat nad obsahem obou stránek. */
+export function SettingsTabs() {
+  const { pathname } = useLocation()
+  const tab = (to: string, label: string, active: boolean) => (
+    <NavLink key={to} to={to} className={`rounded-md px-3 py-1.5 text-sm font-medium ${active ? 'bg-blue-700 text-white' : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'}`}>{label}</NavLink>
+  )
+  return (
+    <div className="mb-4 flex gap-2 no-print">
+      {tab('/nastaveni', 'Nastavení', pathname.startsWith('/nastaveni'))}
+      {tab('/import', 'Import dat', pathname.startsWith('/import'))}
     </div>
   )
 }

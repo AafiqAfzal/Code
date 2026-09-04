@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { Printer, Shuffle, Trash2 } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { ArrowLeft, Printer, Shuffle, Trash2 } from 'lucide-react'
 import { db, type SeatingPlan } from '../db/schema'
 import { useClasses, useGroups, useStudents } from '../components/hooks'
 import { PageHeader } from '../components/ui'
@@ -56,6 +56,7 @@ export function SeatingPage() {
 
   return (
     <div>
+      <Link to={classId ? `/tridy?class=${classId}` : '/tridy'} className="btn-ghost btn-sm mb-2 no-print"><ArrowLeft size={14} /> Třídy a skupiny</Link>
       <PageHeader title="Zasedací pořádek" subtitle={name} actions={
         <>
           <select className="input w-auto" value={sel} onChange={(e) => { const v = e.target.value; setParams(v.startsWith('g') ? { groupId: v.slice(1) } : v ? { classId: v.slice(1) } : {}) }}>

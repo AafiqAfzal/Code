@@ -4,6 +4,7 @@ import { FileSpreadsheet, FileText, ClipboardList } from 'lucide-react'
 import { db } from '../db/schema'
 import { useCategories, useClasses, useGroups, useStudents, useSubjects } from '../components/hooks'
 import { Field, PageHeader } from '../components/ui'
+import { SettingsTabs } from '../components/Layout'
 import { fmtDate, fullName, todayISO } from '../lib/format'
 import { applyMapping, gradeFromClassName, guessMapping, parseWorkbook, splitFullName, type ColumnMapping, type ImportRow, type ParsedSheet } from '../lib/excelImport'
 import { extractDocx, extractPlainText, type ExtractedItem } from '../lib/docxImport'
@@ -13,7 +14,8 @@ export function ImportPage() {
   const tab = params.get('tab') === 'word' ? 'word' : params.get('tab') === 'znamky' ? 'znamky' : 'excel'
   return (
     <div>
-      <PageHeader title="Import dat" subtitle="Seznamy žáků z Excelu (Škola online) a tematické plány z Wordu" />
+      <PageHeader title="Import dat" subtitle="Seznamy žáků z Excelu (Škola online), tematické plány z Wordu, známky z Excelu" />
+      <SettingsTabs />
       <div className="mb-4 flex gap-2 no-print">
         <button className={tab === 'excel' ? 'btn-primary' : 'btn-secondary'} onClick={() => setParams({ tab: 'excel' })}><FileSpreadsheet size={16} /> Žáci z Excelu</button>
         <button className={tab === 'word' ? 'btn-primary' : 'btn-secondary'} onClick={() => setParams({ tab: 'word' })}><FileText size={16} /> Tematický plán z Wordu</button>

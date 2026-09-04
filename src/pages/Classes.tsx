@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Plus, Scissors, Users, Sparkles } from 'lucide-react'
+import { Plus, Scissors, Users, Sparkles, Armchair, Printer } from 'lucide-react'
 import { db, type Group, type SchoolClass } from '../db/schema'
 import { useClasses, useGroups, useStudents, useSubjects } from '../components/hooks'
 import { Badge, ColorDot, ConfirmButton, EmptyState, Field, Modal, PageHeader } from '../components/ui'
@@ -79,6 +79,7 @@ export function ClassesPage() {
                     <div><div className="font-semibold text-sm">{g.name}</div><div className="text-xs text-slate-500">{subjects.find((s) => s.id === g.subjectId)?.name ?? ''} · {members.length} žáků</div></div>
                     <div className="flex gap-1">
                       <Link to={`/dochazka?groupId=${g.id}`} className="btn-secondary btn-sm">Docházka</Link>
+                      <Link to={`/zasedaci?groupId=${g.id}`} className="btn-secondary btn-sm" title="Zasedací pořádek"><Armchair size={14} /></Link>
                       <button className="btn-secondary btn-sm" onClick={() => setGroupDraft({ ...g })}>Upravit</button>
                       <ConfirmButton onConfirm={() => db.groups.delete(g.id)}>×</ConfirmButton>
                     </div>
@@ -113,6 +114,7 @@ export function ClassesPage() {
                   {selectedClass.classTeacher && <div className="text-xs text-slate-500">Třídní: {selectedClass.classTeacher}</div>}
                 </div>
                 <div className="flex gap-2">
+                  <Link to={`/zasedaci?classId=${selectedClass.id}`} className="btn-secondary btn-sm"><Armchair size={14} /> Zasedací pořádek</Link>
                   <button className="btn-secondary btn-sm" onClick={() => setClassDraft({ ...selectedClass })}>Upravit</button>
                   <button className="btn-secondary btn-sm" onClick={splitInHalf} disabled={classStudents.length === 0}><Scissors size={14} /> Rozdělit na poloviny</button>
                   <button className="btn-primary btn-sm" onClick={() => setGroupDraft({ name: '', gradeLevel: selectedClass.gradeLevel, subjectId: subjects[0]?.id, studentIds: [], color: COLORS[gradeGroups.length % COLORS.length] })}><Plus size={14} /> Nová skupina</button>
@@ -153,6 +155,8 @@ export function ClassesPage() {
                         </div>
                         <div className="flex gap-1">
                           <Link to={`/hodnoceni?groupId=${g.id}`} className="btn-secondary btn-sm">Známky</Link>
+                          <Link to={`/zasedaci?groupId=${g.id}`} className="btn-secondary btn-sm" title="Zasedací pořádek"><Armchair size={14} /></Link>
+                          <Link to={`/tisk?groupId=${g.id}`} className="btn-secondary btn-sm" title="Podklady na třídní schůzky (tisk)"><Printer size={14} /></Link>
                           <button className="btn-secondary btn-sm" onClick={() => setGroupDraft({ ...g })}>Upravit</button>
                           <ConfirmButton onConfirm={() => db.groups.delete(g.id)}>×</ConfirmButton>
                         </div>

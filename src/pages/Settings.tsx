@@ -9,6 +9,7 @@ import { downloadBlob, exportBackup, importBackup, wipeAll } from '../lib/backup
 import { isDesktop, runDailyAutoBackupForce, saveBackupAs } from '../lib/desktop'
 import { PIN_RE, clearPin, setPin, verifyPin } from '../lib/pin'
 import { NewYearWizard } from '../components/NewYearWizard'
+import { SettingsTabs } from '../components/Layout'
 import { NATIONAL_SCHOOL_HOLIDAYS } from '../lib/holidays'
 import { fmtDate } from '../lib/format'
 
@@ -54,6 +55,7 @@ export function SettingsPage() {
   return (
     <div className="space-y-4">
       <PageHeader title="Nastavení" />
+      <SettingsTabs />
       <Toast message={message} />
       {settings && (
         <section className="card card-body grid gap-3 md:grid-cols-3">
