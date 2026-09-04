@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { db, type LessonLog } from '../db/schema'
-import { useClasses, useGroups, useSettings, useStudents, useSubjects } from '../components/hooks'
+import { useClasses, useGroups, useMyGroups, useSettings, useStudents, useSubjects } from '../components/hooks'
 import { Badge, ConfirmButton, Field, Modal, PageHeader } from '../components/ui'
 import { fmtDate, fullName, todayISO } from '../lib/format'
 
@@ -14,6 +14,7 @@ export function LessonLogsPage() {
   const settings = useSettings()
   const subjects = useSubjects()
   const groups = useGroups()
+  const myGroups = useMyGroups()
   const classes = useClasses()
   const students = useStudents()
   const [filterGroup, setFilterGroup] = useState<number | ''>('')
@@ -24,7 +25,7 @@ export function LessonLogsPage() {
   const prefilledFor = useRef('')
 
   const newDraft = (init: Partial<Draft> = {}): Draft => ({
-    date: todayISO(), subjectId: settings?.defaultSubjectId ?? subjects[0]?.id ?? 0, groupId: groups[0]?.id, topic: '', absentStudentIds: [], ...init,
+    date: todayISO(), subjectId: settings?.defaultSubjectId ?? subjects[0]?.id ?? 0, groupId: myGroups[0]?.id, topic: '', absentStudentIds: [], ...init,
   })
   // Otevření z přehledu ("Zapsat hodinu")
   useEffect(() => {
@@ -63,7 +64,7 @@ export function LessonLogsPage() {
     <div>
       <PageHeader title="Zápisy z hodin" subtitle="Co se probralo, kdo chyběl, domácí úkoly" actions={
         <>
-          <select className="input w-auto" value={filterGroup} onChange={(e) => setFilterGroup(Number(e.target.value) || '')}><option value="">Všechny skupiny</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select>
+          <select className="input w-auto" value={filterGroup} onChange={(e) => setFilterGroup(Number(e.target.value) || '')}><option value="">Všechny skupiny</option>{myGroups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select>
           <button className="btn-primary" onClick={() => setDraft(newDraft())}><Plus size={16} /> Nový zápis</button>
         </>
       } />
@@ -97,7 +98,7 @@ export function LessonLogsPage() {
                 <Field label="Skupina / třída">
                   <select className="input" value={draft.groupId ? `g${draft.groupId}` : draft.classId ? `c${draft.classId}` : ''} onChange={(e) => { const v = e.target.value; setDraft({ ...draft, groupId: v.startsWith('g') ? Number(v.slice(1)) : undefined, classId: v.startsWith('c') ? Number(v.slice(1)) : undefined, absentStudentIds: [] }) }}>
                     <option value="">—</option>
-                    <optgroup label="Skupiny">{groups.map((g) => <option key={g.id} value={`g${g.id}`}>{g.name}</option>)}</optgroup>
+                    <optgroup label="Skupiny">{myGroups.map((g) => <option key={g.id} value={`g${g.id}`}>{g.name}</option>)}</optgroup>
                     <optgroup label="Třídy">{classes.map((c) => <option key={c.id} value={`c${c.id}`}>{c.name}</option>)}</optgroup>
                   </select>
                 </Field>

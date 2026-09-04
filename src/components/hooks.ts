@@ -14,6 +14,10 @@ export function useClasses() {
 export function useGroups() {
   return useLiveQuery(() => db.groups.orderBy('name').toArray(), []) ?? []
 }
+/** Jen skupiny, které učím já (bez skupin kolegů). */
+export function useMyGroups() {
+  return useGroups().filter((g) => g.mine !== false)
+}
 export function useStudents(activeOnly = true) {
   return useLiveQuery(async () => {
     const all = await db.students.toArray()

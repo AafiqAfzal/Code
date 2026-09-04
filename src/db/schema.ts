@@ -58,6 +58,10 @@ export interface Group {
   studentIds: number[]
   color?: string
   note?: string
+  /** Kdo skupinu učí (u skupin kolegů). */
+  teacher?: string
+  /** false = skupinu učí kolega; v nabídkách se neukazuje */
+  mine?: boolean
 }
 
 export interface Student {

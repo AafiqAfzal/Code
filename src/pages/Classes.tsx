@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Plus, Scissors, Users, Sparkles, Armchair, Printer } from 'lucide-react'
+import { Plus, Users, Sparkles, Armchair, Printer, CalendarCheck } from 'lucide-react'
 import { db, type Group, type SchoolClass } from '../db/schema'
 import { useClasses, useGroups, useStudents, useSubjects } from '../components/hooks'
 import { Badge, ColorDot, ConfirmButton, EmptyState, Field, Modal, PageHeader } from '../components/ui'
@@ -42,18 +42,6 @@ export function ClassesPage() {
     if (id) await db.groups.update(id, data)
     else await db.groups.add(data)
     setGroupDraft(null)
-  }
-  /** Rozdělí třídu abecedně na dvě poloviny a vytvoří dvě skupiny. */
-  const splitInHalf = async () => {
-    if (!selectedClass) return
-    const sorted = [...classStudents].sort(byName)
-    const half = Math.ceil(sorted.length / 2)
-    const subjectId = subjects[0]?.id
-    const abbr = subjects[0]?.abbreviation ?? ''
-    await db.groups.bulkAdd([
-      { name: `${abbr} ${selectedClass.name} – 1. skupina`.trim(), subjectId, gradeLevel: selectedClass.gradeLevel, studentIds: sorted.slice(0, half).map((s) => s.id), color: COLORS[0] },
-      { name: `${abbr} ${selectedClass.name} – 2. skupina`.trim(), subjectId, gradeLevel: selectedClass.gradeLevel, studentIds: sorted.slice(half).map((s) => s.id), color: COLORS[1] },
-    ])
   }
   const groupsOfStudent = (id: number) => [...gradeGroups, ...crossGroups].filter((g) => g.studentIds.includes(id))
   const toggleMember = (id: number) => {
@@ -118,8 +106,9 @@ export function ClassesPage() {
                 </div>
                 <div className="flex gap-2">
                   <Link to={`/zasedaci?classId=${selectedClass.id}`} className="btn-secondary btn-sm"><Armchair size={14} /> Zasedací pořádek</Link>
+                  <Link to={`/dochazka?classId=${selectedClass.id}`} className="btn-secondary btn-sm"><CalendarCheck size={14} /> Docházka</Link>
+                  <Link to={`/tisk?classId=${selectedClass.id}`} className="btn-secondary btn-sm"><Printer size={14} /> Podklady na schůzky</Link>
                   <button className="btn-secondary btn-sm" onClick={() => setClassDraft({ ...selectedClass })}>Upravit</button>
-                  <button className="btn-secondary btn-sm" onClick={splitInHalf} disabled={classStudents.length === 0}><Scissors size={14} /> Rozdělit na poloviny</button>
                   <button className="btn-primary btn-sm" onClick={() => setGroupDraft({ name: '', gradeLevel: selectedClass.gradeLevel, subjectId: subjects[0]?.id, studentIds: [], color: COLORS[gradeGroups.length % COLORS.length] })}><Plus size={14} /> Nová skupina</button>
                   <ConfirmButton onConfirm={async () => { await db.classes.delete(selectedClass.id); setParams({}) }}>Smazat třídu</ConfirmButton>
                 </div>
@@ -145,16 +134,16 @@ export function ClassesPage() {
 
             <div>
               <h3 className="mb-2 font-semibold text-slate-700 flex items-center gap-2"><Users size={16} /> Skupiny {scopeLabel}</h3>
-              {gradeGroups.length === 0 && <EmptyState>Žádné skupiny. Použijte „Rozdělit na poloviny“ nebo vytvořte skupinu ručně.</EmptyState>}
+              {gradeGroups.length === 0 && <EmptyState>Žádné skupiny. Vytvořte skupinu tlačítkem „Nová skupina“ nebo je založí import žáků.</EmptyState>}
               <div className="grid gap-3 md:grid-cols-2">
-                {gradeGroups.map((g) => {
+                {[...gradeGroups].sort((a, b) => Number(b.mine !== false) - Number(a.mine !== false)).map((g) => {
                   const members = g.studentIds.map((id) => students.find((s) => s.id === id)).filter(Boolean).sort((a, b) => byName(a!, b!))
                   return (
                     <div key={g.id} className="card">
                       <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200" style={{ borderTop: `3px solid ${g.color ?? '#94a3b8'}` }}>
                         <div>
                           <div className="font-semibold text-sm">{g.name}</div>
-                          <div className="text-xs text-slate-500">{subjects.find((s) => s.id === g.subjectId)?.name ?? ''} · {members.length} žáků</div>
+                          <div className="text-xs text-slate-500">{subjects.find((s) => s.id === g.subjectId)?.name ?? ''} · {members.length} žáků{g.mine === false ? <span className="ml-1 rounded bg-slate-200 px-1 text-slate-700">učí {g.teacher || 'kolega'}</span> : ''}</div>
                         </div>
                         <div className="flex gap-1">
                           <Link to={`/hodnoceni?groupId=${g.id}`} className="btn-secondary btn-sm">Známky</Link>
@@ -225,7 +214,12 @@ export function ClassesPage() {
                 ))}
               </div>
             </div>
-            <Field label="Poznámka"><input className="input" value={groupDraft.note ?? ''} onChange={(e) => setGroupDraft({ ...groupDraft, note: e.target.value })} /></Field>
+            <div className="grid grid-cols-[auto_1fr_1fr] gap-3 items-end">
+              <label className="flex items-center gap-2 text-sm pb-2"><input type="checkbox" checked={groupDraft.mine !== false} onChange={(e) => setGroupDraft({ ...groupDraft, mine: e.target.checked ? undefined : false })} /> Učím já</label>
+              <Field label="Vyučující (u skupiny kolegy)"><input className="input" value={groupDraft.teacher ?? ''} onChange={(e) => setGroupDraft({ ...groupDraft, teacher: e.target.value })} placeholder="např. kolegyně" disabled={groupDraft.mine !== false} /></Field>
+              <Field label="Poznámka"><input className="input" value={groupDraft.note ?? ''} onChange={(e) => setGroupDraft({ ...groupDraft, note: e.target.value })} /></Field>
+            </div>
+            <p className="text-xs text-slate-500">Skupiny kolegů zůstanou v přehledu třídy, ale nenabízejí se v rozvrhu, hodnocení, docházce ani při zápisu hodin.</p>
             <div className="flex justify-end gap-2"><button className="btn-secondary" onClick={() => setGroupDraft(null)}>Zrušit</button><button className="btn-primary" onClick={saveGroup}>Uložit</button></div>
           </div>
         )}

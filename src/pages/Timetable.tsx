@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { addDays, addWeeks, format, startOfWeek } from 'date-fns'
 import { Check, ChevronLeft, ChevronRight, FileJson, Sparkles } from 'lucide-react'
 import { db, type ChangeKind, type TimetableChange, type TimetableSlot } from '../db/schema'
-import { useClasses, useGroups, useSettings, useSubjects } from '../components/hooks'
+import { useClasses, useGroups, useMyGroups, useSettings, useSubjects } from '../components/hooks'
 import { ConfirmButton, Field, Modal, PageHeader } from '../components/ui'
 import { LESSON_NUMBERS, WEEKDAYS, fmtDate, lessonRange } from '../lib/format'
 import { importTimetableFile, readJsonFile, type TimetableFile } from '../db/seed'
@@ -22,6 +22,7 @@ export function TimetablePage() {
   const schoolHolidays = useLiveQuery(() => db.schoolHolidays.toArray(), []) ?? []
   const subjects = useSubjects()
   const groups = useGroups()
+  const myGroups = useMyGroups()
   const classes = useClasses()
   const [weekStart, setWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }))
   const [slotDraft, setSlotDraft] = useState<SlotDraft | null>(null)
@@ -185,7 +186,7 @@ export function TimetablePage() {
             <Field label={slotDraft.kind === 'krouzek' ? 'Skupina (členové kroužku)' : 'Skupina / třída'}>
               <select className="input" value={slotDraft.groupId ? `g${slotDraft.groupId}` : slotDraft.classId ? `c${slotDraft.classId}` : ''} onChange={(e) => { const v = e.target.value; setSlotDraft({ ...slotDraft, groupId: v.startsWith('g') ? Number(v.slice(1)) : undefined, classId: v.startsWith('c') ? Number(v.slice(1)) : undefined }) }}>
                 <option value="">—</option>
-                <optgroup label="Skupiny">{groups.map((g) => <option key={g.id} value={`g${g.id}`}>{g.name}</option>)}</optgroup>
+                <optgroup label="Skupiny">{myGroups.map((g) => <option key={g.id} value={`g${g.id}`}>{g.name}</option>)}</optgroup>
                 <optgroup label="Třídy">{classes.map((c) => <option key={c.id} value={`c${c.id}`}>{c.name}</option>)}</optgroup>
               </select>
               {slotDraft.kind === 'krouzek' && <p className="mt-1 text-xs text-slate-500">Skupinu kroužku napříč ročníky založíte v Třídy a skupiny → „Nový kroužek“. Pak půjde zapisovat docházku i zápisy z hodin.</p>}
@@ -215,7 +216,7 @@ export function TimetablePage() {
                   <select className="input" value={changeDraft.groupId ? `g${changeDraft.groupId}` : changeDraft.classId ? `c${changeDraft.classId}` : ''} onChange={(e) => { const v = e.target.value; setChangeDraft({ ...changeDraft, groupId: v.startsWith('g') ? Number(v.slice(1)) : undefined, classId: v.startsWith('c') ? Number(v.slice(1)) : undefined }) }}>
                     <option value="">—</option>
                     <optgroup label="Třídy">{classes.map((c) => <option key={c.id} value={`c${c.id}`}>{c.name}</option>)}</optgroup>
-                    <optgroup label="Skupiny">{groups.map((g) => <option key={g.id} value={`g${g.id}`}>{g.name}</option>)}</optgroup>
+                    <optgroup label="Skupiny">{myGroups.map((g) => <option key={g.id} value={`g${g.id}`}>{g.name}</option>)}</optgroup>
                   </select>
                 </Field>
                 <div className="grid grid-cols-2 gap-3">

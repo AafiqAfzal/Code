@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Printer } from 'lucide-react'
 import { db } from '../db/schema'
-import { useCategories, useClasses, useGroups, useScale, useSettings, useStudents, useSubjects } from '../components/hooks'
+import { useCategories, useClasses, useGroups, useMyGroups, useScale, useSettings, useStudents, useSubjects } from '../components/hooks'
 import { PageHeader } from '../components/ui'
 import { NOTE_KINDS, fmtDate, fullName, todayISO } from '../lib/format'
 import { effectiveGrade, percentOf, proposedGrade, weightedAverage } from '../lib/grading'
@@ -14,11 +14,13 @@ export function PrintReportPage() {
   const settings = useSettings()
   const subjects = useSubjects()
   const groups = useGroups()
+  const myGroups = useMyGroups()
   const classes = useClasses()
   const students = useStudents()
   const categories = useCategories()
   const scale = useScale()
   const groupId = Number(params.get('groupId')) || undefined
+  const classId = Number(params.get('classId')) || undefined
   const onlyStudentId = Number(params.get('studentId')) || undefined
   const subjectId = Number(params.get('subjectId')) || groups.find((g) => g.id === groupId)?.subjectId || settings?.defaultSubjectId || subjects[0]?.id
   const [opts, setOpts] = useState({ grades: true, absence: true, notes: false, evaluation: true, signature: true })
@@ -27,36 +29,36 @@ export function PrintReportPage() {
   const { from: dateFrom, to: dateTo } = termRange(activeTerm, settings)
   const group = groups.find((g) => g.id === groupId)
   const roster = useMemo(() => {
-    const base = group ? students.filter((s) => group.studentIds.includes(s.id)) : onlyStudentId ? students.filter((s) => s.id === onlyStudentId) : []
+    const base = group ? students.filter((s) => group.studentIds.includes(s.id)) : classId ? students.filter((s) => s.classId === classId) : onlyStudentId ? students.filter((s) => s.id === onlyStudentId) : []
     return onlyStudentId ? base.filter((s) => s.id === onlyStudentId) : base
-  }, [group, onlyStudentId, students])
+  }, [group, classId, onlyStudentId, students])
   const ids = roster.map((s) => s.id)
   const data = useLiveQuery(async () => {
     if (!ids.length || !subjectId) return null
     const inRange = (d: string) => d >= dateFrom && d <= dateTo
     const assessments = (await db.assessments.where('subjectId').equals(subjectId).toArray()).filter((a) => ids.includes(a.studentId) && inRange(a.date))
-    const logs = (await db.lessonLogs.toArray()).filter((l) => inRange(l.date) && (groupId ? l.groupId === groupId : true))
+    const logs = (await db.lessonLogs.toArray()).filter((l) => inRange(l.date) && (groupId ? l.groupId === groupId : classId ? l.classId === classId : true))
     const notes = (await db.studentNotes.toArray()).filter((n) => ids.includes(n.studentId) && inRange(n.date))
     const evals = (await db.termEvaluations.toArray()).filter((e) => ids.includes(e.studentId) && e.subjectId === subjectId && (activeTerm === 0 || e.term === activeTerm))
     return { assessments, logs, notes, evals }
-  }, [ids.join(','), subjectId, dateFrom, dateTo, groupId, activeTerm])
+  }, [ids.join(','), subjectId, dateFrom, dateTo, groupId, classId, activeTerm])
   const subject = subjects.find((s) => s.id === subjectId)
   const catName = (id: number) => categories.find((c) => c.id === id)?.name ?? ''
 
   return (
     <div>
       <div className="no-print">
-        <Link to={onlyStudentId ? `/zaci/${onlyStudentId}` : '/tridy'} className="btn-ghost btn-sm mb-2"><ArrowLeft size={14} /> Zpět</Link>
+        <Link to={onlyStudentId ? `/zaci/${onlyStudentId}` : classId ? `/tridy?class=${classId}` : '/tridy'} className="btn-ghost btn-sm mb-2"><ArrowLeft size={14} /> Zpět</Link>
         <PageHeader title="Podklady na schůzku s rodiči" subtitle="Přehled hodnocení, absence a poznámek – jedna stránka na žáka" actions={
           <button className="btn-primary" disabled={!roster.length} onClick={() => window.print()}><Printer size={16} /> Tisknout ({roster.length})</button>
         } />
         <div className="card card-body mb-4 flex flex-wrap items-end gap-3">
-          <div><div className="label">Skupina</div>
-            <select className="input w-auto" value={groupId ?? ''} onChange={(e) => setParams({ groupId: e.target.value })}><option value="">—</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select></div>
+          <div><div className="label">Skupina / třída</div>
+            <select className="input w-auto" value={groupId ? `g${groupId}` : classId ? `c${classId}` : ''} onChange={(e) => { const v = e.target.value; setParams(v.startsWith('g') ? { groupId: v.slice(1) } : v ? { classId: v.slice(1) } : {}) }}><option value="">—</option><optgroup label="Skupiny">{myGroups.map((g) => <option key={g.id} value={`g${g.id}`}>{g.name}</option>)}</optgroup><optgroup label="Třídy">{classes.map((c) => <option key={c.id} value={`c${c.id}`}>{c.name}</option>)}</optgroup></select></div>
           <div><div className="label">Předmět</div>
             <select className="input w-auto" value={subjectId ?? ''} onChange={(e) => setParams({ ...Object.fromEntries(params), subjectId: e.target.value })}>{subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
           <div><div className="label">Jen žák</div>
-            <select className="input w-auto" value={onlyStudentId ?? ''} onChange={(e) => setParams({ ...Object.fromEntries(params), studentId: e.target.value })}><option value="">všichni ve skupině</option>{(group ? students.filter((s) => group.studentIds.includes(s.id)) : students).map((s) => <option key={s.id} value={s.id}>{fullName(s)}</option>)}</select></div>
+            <select className="input w-auto" value={onlyStudentId ?? ''} onChange={(e) => setParams({ ...Object.fromEntries(params), studentId: e.target.value })}><option value="">všichni ve skupině</option>{(group ? students.filter((s) => group.studentIds.includes(s.id)) : classId ? students.filter((s) => s.classId === classId) : students).map((s) => <option key={s.id} value={s.id}>{fullName(s)}</option>)}</select></div>
           <div><div className="label">Období</div><select className="input w-auto" value={activeTerm} onChange={(e) => setTerm(Number(e.target.value) as Term)}>{([1, 2, 0] as Term[]).map((t) => <option key={t} value={t}>{TERM_LABEL[t]}</option>)}</select></div>
           <div className="flex flex-wrap gap-3 text-sm pb-1">
             {([['grades', 'známky'], ['absence', 'absence'], ['evaluation', 'slovní hodnocení'], ['notes', 'poznámky (pochvaly, napomenutí)'], ['signature', 'podpis rodiče']] as const).map(([k, l]) => (

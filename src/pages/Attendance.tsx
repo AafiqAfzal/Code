@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Download } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { db } from '../db/schema'
-import { useClasses, useGroups, useSettings, useStudents } from '../components/hooks'
+import { useClasses, useGroups, useMyGroups, useSettings, useStudents } from '../components/hooks'
 import { PageHeader } from '../components/ui'
 import { MONTHS, fmtDate, fullName, genderClass } from '../lib/format'
 
@@ -14,6 +14,7 @@ export function AttendancePage() {
   const [params, setParams] = useSearchParams()
   const settings = useSettings()
   const groups = useGroups()
+  const myGroups = useMyGroups()
   const classes = useClasses()
   const students = useStudents()
   const groupId = Number(params.get('groupId')) || undefined
@@ -45,7 +46,7 @@ export function AttendancePage() {
         <>
           <select className="input w-auto" value={sel} onChange={(e) => { const v = e.target.value; setParams(v.startsWith('g') ? { groupId: v.slice(1) } : v ? { classId: v.slice(1) } : {}) }}>
             <option value="">— vyberte —</option>
-            <optgroup label="Skupiny">{groups.map((g) => <option key={g.id} value={`g${g.id}`}>{g.name}</option>)}</optgroup>
+            <optgroup label="Skupiny">{myGroups.map((g) => <option key={g.id} value={`g${g.id}`}>{g.name}</option>)}</optgroup>
             <optgroup label="Třídy">{classes.map((c) => <option key={c.id} value={`c${c.id}`}>{c.name}</option>)}</optgroup>
           </select>
           <select className="input w-auto" value={month} onChange={(e) => setMonth(e.target.value)}><option value="">Celý rok</option>{MONTHS.map((m) => <option key={m} value={m}>{m}</option>)}</select>

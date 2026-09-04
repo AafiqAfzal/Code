@@ -78,7 +78,7 @@ export async function loadDemoData() {
   }
   const g1 = await db.groups.add({ name: 'AJ 6.A – 1. skupina', subjectId, gradeLevel: 6, studentIds: idsA.slice(0, 6), color: '#2563eb' })
   const g2 = await db.groups.add({ name: 'AJ 6.B – 1. skupina', subjectId, gradeLevel: 6, studentIds: idsB.slice(0, 6), color: '#16a34a' })
-  await db.groups.add({ name: 'AJ 6.A – 2. skupina (kolegyně)', subjectId, gradeLevel: 6, studentIds: idsA.slice(6), color: '#94a3b8' })
+  await db.groups.add({ name: 'AJ 6.A – 2. skupina', subjectId, gradeLevel: 6, studentIds: idsA.slice(6), color: '#94a3b8', mine: false, teacher: 'kolegyně' })
 
   const cats = await db.gradeCategories.orderBy('order').toArray()
   const today = new Date()

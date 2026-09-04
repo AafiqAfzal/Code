@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Download, Plus, Shuffle, Info } from 'lucide-react'
 import { db, type Assessment } from '../db/schema'
-import { useCategories, useClasses, useGroups, useScale, useSettings, useStudents, useSubjects } from '../components/hooks'
+import { useCategories, useClasses, useGroups, useMyGroups, useScale, useSettings, useStudents, useSubjects } from '../components/hooks'
 import { ConfirmButton, Field, Modal, PageHeader, Toast, useToast } from '../components/ui'
 import { fmtDate, fullName, genderClass, todayISO } from '../lib/format'
 import { GRADE_COLORS, avgColor, effectiveGrade, percentOf, proposedGrade, weightedAverage } from '../lib/grading'
@@ -18,6 +18,7 @@ export function GradesPage() {
   const settings = useSettings()
   const subjects = useSubjects()
   const groups = useGroups()
+  const myGroups = useMyGroups()
   const classes = useClasses()
   const students = useStudents()
   const categories = useCategories()
@@ -32,8 +33,8 @@ export function GradesPage() {
   const classId = Number(params.get('classId')) || undefined
   const group = groups.find((g) => g.id === groupId)
   useEffect(() => {
-    if (!groupId && !classId && groups.length) setParams({ groupId: String(groups[0].id) }, { replace: true })
-  }, [groupId, classId, groups, setParams])
+    if (!groupId && !classId && myGroups.length) setParams({ groupId: String(myGroups[0].id) }, { replace: true })
+  }, [groupId, classId, myGroups, setParams])
 
   const roster = useMemo(() => group ? students.filter((s) => group.studentIds.includes(s.id)) : classId ? students.filter((s) => s.classId === classId) : [], [group, classId, students])
   const rosterIds = roster.map((s) => s.id)
@@ -103,7 +104,7 @@ export function GradesPage() {
         <>
           <select className="input w-auto" value={subjectId ?? ''} onChange={(e) => setParams({ ...Object.fromEntries(params), subjectId: e.target.value })}>{subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
           <select className="input w-auto" value={groupId ? `g${groupId}` : classId ? `c${classId}` : ''} onChange={(e) => { const v = e.target.value; setParams({ subjectId: String(subjectId ?? ''), ...(v.startsWith('g') ? { groupId: v.slice(1) } : { classId: v.slice(1) }) }) }}>
-            <optgroup label="Skupiny">{groups.map((g) => <option key={g.id} value={`g${g.id}`}>{g.name}</option>)}</optgroup>
+            <optgroup label="Skupiny">{myGroups.map((g) => <option key={g.id} value={`g${g.id}`}>{g.name}</option>)}</optgroup>
             <optgroup label="Celé třídy">{classes.map((c) => <option key={c.id} value={`c${c.id}`}>{c.name}</option>)}</optgroup>
           </select>
           <select className="input w-auto" value={activeTerm} onChange={(e) => setTerm(Number(e.target.value) as Term)} title="Pololetí">{([1, 2, 0] as Term[]).map((t) => <option key={t} value={t}>{TERM_LABEL[t]}</option>)}</select>
