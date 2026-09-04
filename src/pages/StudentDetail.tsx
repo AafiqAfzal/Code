@@ -5,7 +5,7 @@ import { ArrowLeft, Plus } from 'lucide-react'
 import { db, type Student, type StudentNoteKind } from '../db/schema'
 import { useCategories, useClasses, useGroups, useScale, useSettings, useSubjects } from '../components/hooks'
 import { Badge, ConfirmButton, Field, PageHeader } from '../components/ui'
-import { NOTE_KINDS, fmtDate, fullName, todayISO } from '../lib/format'
+import { GENDER_LABEL, NOTE_KINDS, fmtDate, fullName, genderClass, todayISO } from '../lib/format'
 import { GRADE_COLORS, avgColor, effectiveGrade, percentOf, proposedGrade, weightedAverage } from '../lib/grading'
 import { termRange } from '../lib/terms'
 
@@ -54,7 +54,7 @@ export function StudentDetail() {
   return (
     <div>
       <button className="btn-ghost btn-sm mb-2 no-print" onClick={() => navigate(-1)}><ArrowLeft size={14} /> Zpět</button>
-      <PageHeader title={fullName(student)} subtitle={`${cls?.name ?? 'bez třídy'}${student.catalogNumber ? ` · č. ${student.catalogNumber}` : ''}${student.active ? '' : ' · neaktivní'}`} actions={
+      <PageHeader title={<span className={genderClass(student.gender)}>{fullName(student)}</span>} subtitle={`${cls?.name ?? 'bez třídy'}${student.catalogNumber ? ` · č. ${student.catalogNumber}` : ''}${student.active ? '' : ' · neaktivní'}`} actions={
         <>
           <button className="btn-secondary" onClick={() => setEdit({ ...student })}>Upravit profil</button>
           <Link className="btn-primary" to={`/tisk?studentId=${student.id}${myGroups[0] ? `&groupId=${myGroups[0].id}` : ''}`}>Podklady na schůzku s rodiči</Link>
@@ -77,10 +77,10 @@ export function StudentDetail() {
                   <Field label="Č. v katalogu"><input type="number" className="input" value={edit.catalogNumber ?? ''} onChange={(e) => setEdit({ ...edit, catalogNumber: Number(e.target.value) || undefined })} /></Field>
                 </div>
                 <Field label="Datum narození"><input type="date" className="input" value={edit.birthDate ?? ''} onChange={(e) => setEdit({ ...edit, birthDate: e.target.value })} /></Field>
-                <Field label="Státní občanství"><input className="input" value={edit.citizenship ?? ''} onChange={(e) => setEdit({ ...edit, citizenship: e.target.value })} /></Field>
-                <Field label="E-mail žáka"><input className="input" value={edit.email ?? ''} onChange={(e) => setEdit({ ...edit, email: e.target.value })} /></Field>
-                <Field label="Zákonný zástupce"><input className="input" value={edit.parentName ?? ''} onChange={(e) => setEdit({ ...edit, parentName: e.target.value })} /></Field>
-                <Field label="Kontakt na rodiče"><input className="input" value={edit.parentContact ?? ''} onChange={(e) => setEdit({ ...edit, parentContact: e.target.value })} /></Field>
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label="Státní občanství"><input className="input" value={edit.citizenship ?? ''} onChange={(e) => setEdit({ ...edit, citizenship: e.target.value })} /></Field>
+                  <Field label="Pohlaví"><select className="input" value={edit.gender ?? ''} onChange={(e) => setEdit({ ...edit, gender: (e.target.value || undefined) as 'M' | 'F' | undefined })}><option value="">—</option><option value="F">dívka</option><option value="M">chlapec</option></select></Field>
+                </div>
                 <Field label="Poznámka"><textarea className="input" rows={3} value={edit.note ?? ''} onChange={(e) => setEdit({ ...edit, note: e.target.value })} /></Field>
                 <label className="flex items-center gap-2"><input type="checkbox" checked={edit.active ?? true} onChange={(e) => setEdit({ ...edit, active: e.target.checked })} /> Aktivní žák</label>
                 <div className="flex justify-end gap-2"><button className="btn-secondary btn-sm" onClick={() => setEdit(null)}>Zrušit</button><button className="btn-primary btn-sm" onClick={saveEdit}>Uložit</button></div>
@@ -89,9 +89,7 @@ export function StudentDetail() {
               <dl className="grid grid-cols-[110px_1fr] gap-y-1">
                 <dt className="text-slate-500">Narozen/a</dt><dd>{fmtDate(student.birthDate) || '—'}</dd>
                 <dt className="text-slate-500">Občanství</dt><dd>{student.citizenship || '—'}</dd>
-                <dt className="text-slate-500">E-mail</dt><dd>{student.email || '—'}</dd>
-                <dt className="text-slate-500">Rodič</dt><dd>{student.parentName || '—'}</dd>
-                <dt className="text-slate-500">Kontakt</dt><dd>{student.parentContact || '—'}</dd>
+                <dt className="text-slate-500">Pohlaví</dt><dd>{student.gender ? GENDER_LABEL[student.gender] : '—'}</dd>
                 <dt className="text-slate-500">Skupiny</dt><dd>{myGroups.map((g) => g.name).join(', ') || '—'}</dd>
                 <dt className="text-slate-500">Absence</dt><dd>{logs.length} h (dle zápisů)</dd>
                 <dt className="text-slate-500">Poznámka</dt><dd className="whitespace-pre-wrap">{student.note || '—'}</dd>

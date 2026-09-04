@@ -5,7 +5,7 @@ import { Download, Plus, Shuffle } from 'lucide-react'
 import { db, type Assessment } from '../db/schema'
 import { useCategories, useClasses, useGroups, useScale, useSettings, useStudents, useSubjects } from '../components/hooks'
 import { ConfirmButton, Field, Modal, PageHeader, Toast, useToast } from '../components/ui'
-import { fmtDate, fullName, todayISO } from '../lib/format'
+import { fmtDate, fullName, genderClass, todayISO } from '../lib/format'
 import { GRADE_COLORS, avgColor, effectiveGrade, percentOf, proposedGrade, weightedAverage } from '../lib/grading'
 import { exportGradesXlsx } from '../lib/export'
 import { TERM_LABEL, currentTerm, termRange, type Term } from '../lib/terms'
@@ -141,7 +141,7 @@ export function GradesPage() {
                 const avg = weightedAverage(mine, scale)
                 return (
                   <tr key={s.id}>
-                    <td className="sticky left-0 bg-white z-10 font-medium"><Link to={`/zaci/${s.id}`} className="hover:underline text-blue-700">{fullName(s)}</Link>{s.tags.length > 0 && <span className="ml-1 text-[10px] text-purple-700">{s.tags.join(', ')}</span>}</td>
+                    <td className="sticky left-0 bg-white z-10 font-medium"><Link to={`/zaci/${s.id}`} className={`hover:underline ${genderClass(s.gender)}`}>{fullName(s)}</Link>{s.tags.length > 0 && <span className="ml-1 text-[10px] text-purple-700">{s.tags.join(', ')}</span>}</td>
                     {columns.map((c) => {
                       const a = mine.find((x) => `${x.date}|${x.title}|${x.categoryId}` === c.key)
                       const g = a ? effectiveGrade(a, scale) : undefined

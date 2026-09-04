@@ -71,6 +71,8 @@ export interface Student {
   parentName?: string
   parentContact?: string
   citizenship?: string
+  /** M = chlapec, F = dívka */
+  gender?: 'M' | 'F'
   /** Štítky, např. "IVP", "PLPP", "SPU", "nadaný" */
   tags: string[]
   note?: string

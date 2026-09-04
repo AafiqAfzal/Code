@@ -29,7 +29,7 @@ export function ImportPage() {
 const FIELDS: { key: keyof ColumnMapping; label: string }[] = [
   { key: 'className', label: 'Třída' }, { key: 'lastName', label: 'Příjmení' }, { key: 'firstName', label: 'Jméno' },
   { key: 'fullName', label: 'Celé jméno (pokud je v jednom sloupci)' }, { key: 'group', label: 'Skupina' }, { key: 'catalogNumber', label: 'Číslo v katalogu' },
-  { key: 'gradeLevel', label: 'Ročník' }, { key: 'birthDate', label: 'Datum narození' }, { key: 'citizenship', label: 'Státní občanství' },
+  { key: 'gradeLevel', label: 'Ročník' }, { key: 'birthDate', label: 'Datum narození' }, { key: 'citizenship', label: 'Státní občanství' }, { key: 'gender', label: 'Pohlaví' },
 ]
 
 function ExcelImport() {
@@ -76,8 +76,8 @@ function ExcelImport() {
         const extraTags = tagForeign && isForeign ? ['OMJ'] : []
         const existing = students.find((s) => fold(s.lastName) === fold(r.lastName ?? '') && fold(s.firstName) === fold(r.firstName ?? '') && (!classId || !s.classId || s.classId === classId))
         let studentId: number
-        if (existing) { studentId = existing.id; await db.students.update(studentId, { classId: classId ?? existing.classId, catalogNumber: r.catalogNumber ?? existing.catalogNumber, birthDate: r.birthDate ?? existing.birthDate, citizenship: r.citizenship ?? existing.citizenship, tags: Array.from(new Set([...existing.tags, ...extraTags])), active: true }); updated++ }
-        else { studentId = await db.students.add({ firstName: r.firstName ?? '', lastName: r.lastName ?? '', classId, catalogNumber: r.catalogNumber, birthDate: r.birthDate, citizenship: r.citizenship, tags: extraTags, active: true }); created++ }
+        if (existing) { studentId = existing.id; await db.students.update(studentId, { classId: classId ?? existing.classId, catalogNumber: r.catalogNumber ?? existing.catalogNumber, birthDate: r.birthDate ?? existing.birthDate, citizenship: r.citizenship ?? existing.citizenship, gender: r.gender ?? existing.gender, tags: Array.from(new Set([...existing.tags, ...extraTags])), active: true }); updated++ }
+        else { studentId = await db.students.add({ firstName: r.firstName ?? '', lastName: r.lastName ?? '', classId, catalogNumber: r.catalogNumber, birthDate: r.birthDate, citizenship: r.citizenship, gender: r.gender, tags: extraTags, active: true }); created++ }
         if (r.group) {
           const grade = r.gradeLevel || (cname ? gradeFromClassName(cname) : 0)
           const gname = groupScope === 'class' && cname ? `${subj?.abbreviation ?? ''} ${cname} – sk. ${r.group}`.trim() : `${subj?.abbreviation ?? ''} ${grade ? `${grade}. r.` : ''} – sk. ${r.group}`.trim()
@@ -127,8 +127,8 @@ function ExcelImport() {
           <div className="card overflow-x-auto">
             <div className="px-4 py-2 border-b border-slate-200 text-sm font-semibold">Náhled ({rows.length} žáků)</div>
             <table className="table">
-              <thead><tr><th>Třída</th><th>Roč.</th><th>Příjmení</th><th>Jméno</th><th>Skupina</th><th>Narozen/a</th><th>Občanství</th><th>#</th></tr></thead>
-              <tbody>{rows.slice(0, 200).map((r, i) => <tr key={i}><td>{r.className || defaultClass}</td><td>{r.gradeLevel ?? ''}</td><td>{r.lastName}</td><td>{r.firstName}</td><td>{r.group}</td><td>{fmtDate(r.birthDate)}</td><td>{r.citizenship}</td><td>{r.catalogNumber}</td></tr>)}</tbody>
+              <thead><tr><th>Třída</th><th>Roč.</th><th>Příjmení</th><th>Jméno</th><th>Skupina</th><th>Narozen/a</th><th>Občanství</th><th>Pohl.</th><th>#</th></tr></thead>
+              <tbody>{rows.slice(0, 200).map((r, i) => <tr key={i}><td>{r.className || defaultClass}</td><td>{r.gradeLevel ?? ''}</td><td>{r.lastName}</td><td>{r.firstName}</td><td>{r.group}</td><td>{fmtDate(r.birthDate)}</td><td>{r.citizenship}</td><td>{r.gender === 'F' ? 'D' : r.gender === 'M' ? 'CH' : ''}</td><td>{r.catalogNumber}</td></tr>)}</tbody>
             </table>
             <div className="p-3 flex items-center justify-between border-t border-slate-200">
               <span className="text-sm text-green-700">{result}</span>

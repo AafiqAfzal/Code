@@ -9,6 +9,7 @@ export interface ImportRow {
   gradeLevel?: number
   birthDate?: string
   citizenship?: string
+  gender?: 'M' | 'F'
   raw: Record<string, unknown>
 }
 
@@ -22,6 +23,7 @@ export interface ColumnMapping {
   gradeLevel?: string
   birthDate?: string
   citizenship?: string
+  gender?: string
 }
 
 export interface ParsedSheet {
@@ -51,6 +53,7 @@ export function guessMapping(headers: string[]): ColumnMapping {
     else if (!m.gradeLevel && n.startsWith('rocnik')) m.gradeLevel = h
     else if (!m.birthDate && (n.includes('narozen') || n === 'birth date' || n === 'birthdate')) m.birthDate = h
     else if (!m.citizenship && (n.includes('obcanstv') || n === 'citizenship' || n === 'narodnost')) m.citizenship = h
+    else if (!m.gender && (n.startsWith('pohlav') || n === 'gender' || n === 'sex')) m.gender = h
   }
   return m
 }
@@ -106,6 +109,7 @@ export function applyMapping(rows: Record<string, unknown>[], m: ColumnMapping, 
       }
       if (m.birthDate) out.birthDate = toISODate(raw[m.birthDate])
       if (m.citizenship) out.citizenship = String(raw[m.citizenship] ?? '').trim()
+      if (m.gender) out.gender = parseGender(String(raw[m.gender] ?? ''))
       if (m.catalogNumber) {
         const n = Number(String(raw[m.catalogNumber] ?? '').replace(/\D/g, ''))
         if (n) out.catalogNumber = n
@@ -113,6 +117,15 @@ export function applyMapping(rows: Record<string, unknown>[], m: ColumnMapping, 
       return out
     })
     .filter((r) => r.lastName || r.firstName)
+}
+
+/** „Žena“/„Muž“/„F“/„M“/„dívka“/„chlapec“ → M/F */
+export function parseGender(v: string): 'M' | 'F' | undefined {
+  const n = norm(v)
+  if (!n) return undefined
+  if (/^(z|f|d|w)/.test(n)) return 'F'
+  if (/^(m|ch|b|h)/.test(n)) return 'M'
+  return undefined
 }
 
 /** Excelové datum (sériové číslo, Date nebo text d.m.rrrr) → ISO */

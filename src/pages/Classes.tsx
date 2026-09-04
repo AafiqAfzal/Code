@@ -4,7 +4,7 @@ import { Plus, Scissors, Users, Sparkles, Armchair, Printer } from 'lucide-react
 import { db, type Group, type SchoolClass } from '../db/schema'
 import { useClasses, useGroups, useStudents, useSubjects } from '../components/hooks'
 import { Badge, ColorDot, ConfirmButton, EmptyState, Field, Modal, PageHeader } from '../components/ui'
-import { byName, fullName } from '../lib/format'
+import { byName, fullName, genderClass } from '../lib/format'
 import { gradeFromClassName } from '../lib/excelImport'
 
 const COLORS = ['#2563eb', '#16a34a', '#dc2626', '#ea580c', '#7c3aed', '#0891b2', '#ca8a04', '#db2777', '#64748b']
@@ -129,7 +129,7 @@ export function ClassesPage() {
                       {classStudents.map((s) => (
                         <tr key={s.id}>
                           <td className="text-slate-400 w-8">{s.catalogNumber ?? ''}</td>
-                          <td><Link className="text-blue-700 hover:underline" to={`/zaci/${s.id}`}>{fullName(s)}</Link></td>
+                          <td><Link className={`hover:underline ${genderClass(s.gender)}`} to={`/zaci/${s.id}`}>{fullName(s)}</Link></td>
                           <td className="space-x-1">{groupsOfStudent(s.id).map((g) => <Badge key={g.id} className="bg-slate-100 text-slate-700"><ColorDot color={g.color} /> <span className="ml-1">{g.name}</span></Badge>)}</td>
                           <td className="space-x-1">{s.tags.map((t) => <Badge key={t} className="bg-purple-100 text-purple-800">{t}</Badge>)}</td>
                         </tr>

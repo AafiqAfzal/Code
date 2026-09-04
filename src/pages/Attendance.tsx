@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx'
 import { db } from '../db/schema'
 import { useClasses, useGroups, useSettings, useStudents } from '../components/hooks'
 import { PageHeader } from '../components/ui'
-import { MONTHS, fmtDate, fullName } from '../lib/format'
+import { MONTHS, fmtDate, fullName, genderClass } from '../lib/format'
 
 const MONTH_NUM: Record<string, number> = { září: 9, říjen: 10, listopad: 11, prosinec: 12, leden: 1, únor: 2, březen: 3, duben: 4, květen: 5, červen: 6 }
 
@@ -72,7 +72,7 @@ export function AttendancePage() {
                 const pct = filtered.length ? Math.round((a.length / filtered.length) * 100) : 0
                 return (
                   <tr key={s.id}>
-                    <td className="sticky left-0 bg-white z-10 font-medium"><Link to={`/zaci/${s.id}`} className="text-blue-700 hover:underline">{fullName(s)}</Link></td>
+                    <td className="sticky left-0 bg-white z-10 font-medium"><Link to={`/zaci/${s.id}`} className={`hover:underline ${genderClass(s.gender)}`}>{fullName(s)}</Link></td>
                     {filtered.map((l) => <td key={l.id} className="text-center">{l.absentStudentIds.includes(s.id) ? <span className="inline-block rounded bg-red-100 px-1.5 text-xs font-bold text-red-700">A</span> : <span className="text-slate-200">·</span>}</td>)}
                     <td className={`text-center font-bold ${a.length ? 'text-red-700' : 'text-slate-400'}`}>{a.length} h</td>
                     <td className={`text-center ${pct >= 25 ? 'text-red-700 font-bold' : pct >= 10 ? 'text-orange-600' : 'text-slate-500'}`}>{pct} %</td>

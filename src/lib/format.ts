@@ -16,6 +16,12 @@ export function fullName(s: Pick<Student, 'firstName' | 'lastName'>) {
   return `${s.lastName} ${s.firstName}`.trim()
 }
 
+/** Barva jména podle pohlaví (dívky růžově, chlapci modře, neznámé neutrálně). */
+export function genderClass(g?: 'M' | 'F') {
+  return g === 'F' ? 'text-pink-700' : g === 'M' ? 'text-blue-700' : 'text-slate-800'
+}
+export const GENDER_LABEL: Record<string, string> = { M: 'chlapec', F: 'dívka' }
+
 export const collator = new Intl.Collator('cs')
 export function byName(a: Student, b: Student) {
   return collator.compare(a.lastName, b.lastName) || collator.compare(a.firstName, b.firstName)
