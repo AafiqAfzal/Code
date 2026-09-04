@@ -3,6 +3,7 @@ import { LayoutDashboard, School, Users, UserRound, ClipboardList, BookOpenCheck
 import { useState } from 'react'
 import { useSettings } from './hooks'
 import { MiniCalendar } from './MiniCalendar'
+import { StudentSearch } from './StudentSearch'
 
 interface NavItem { to: string; label: string; icon: typeof LayoutDashboard; end?: boolean; also?: string[] }
 interface NavGroup { title?: string; items: NavItem[] }
@@ -41,6 +42,7 @@ export function Layout() {
             <div className="text-xs text-blue-300">{settings?.schoolYear ?? ''}</div>
           </div>
         </div>
+        <div className="px-2 pt-2"><StudentSearch onNavigate={() => setOpen(false)} /></div>
         <nav className="p-2 overflow-y-auto flex-1 min-h-0">
           {NAV.map((group, gi) => (
             <div key={gi} className={gi > 0 ? 'mt-3 border-t border-blue-800 pt-2' : ''}>

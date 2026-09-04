@@ -1,9 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { addDays, addWeeks, format, startOfWeek } from 'date-fns'
-import { ChevronLeft, ChevronRight, FileJson, Sparkles } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, FileJson, Sparkles } from 'lucide-react'
 import { db, type ChangeKind, type TimetableChange, type TimetableSlot } from '../db/schema'
-import { useClasses, useGroups, useSubjects } from '../components/hooks'
+import { useClasses, useGroups, useSettings, useSubjects } from '../components/hooks'
 import { ConfirmButton, Field, Modal, PageHeader } from '../components/ui'
 import { LESSON_NUMBERS, WEEKDAYS, fmtDate, lessonRange } from '../lib/format'
 import { importTimetableFile, readJsonFile, type TimetableFile } from '../db/seed'
@@ -14,6 +15,8 @@ type SlotDraft = Omit<TimetableSlot, 'id'> & { id?: number }
 type ChangeDraft = Omit<TimetableChange, 'id'> & { id?: number }
 
 export function TimetablePage() {
+  const navigate = useNavigate()
+  const settings = useSettings()
   const slots = useLiveQuery(() => db.timetable.toArray(), []) ?? []
   const changes = useLiveQuery(() => db.timetableChanges.toArray(), []) ?? []
   const schoolHolidays = useLiveQuery(() => db.schoolHolidays.toArray(), []) ?? []
@@ -27,6 +30,9 @@ export function TimetablePage() {
   const [msg, setMsg] = useState('')
   const days = useMemo(() => WEEKDAYS.map((name, i) => ({ name, date: format(addDays(weekStart, i), 'yyyy-MM-dd') })), [weekStart])
   const today = format(new Date(), 'yyyy-MM-dd')
+  const weekLogs = useLiveQuery(() => db.lessonLogs.where('date').between(days[0].date, days[4].date, true, true).toArray(), [days[0].date]) ?? []
+  const logFor = (date: string, e?: ScheduleEntry) => e && weekLogs.find((l) => l.date === date && (e.groupId ? l.groupId === e.groupId : e.classId ? l.classId === e.classId : false) && (l.lessonNumber == null || l.lessonNumber === e.lessonNumber))
+  const logLesson = (date: string, e: ScheduleEntry) => navigate(`/zapisy?groupId=${e.groupId ?? ''}&classId=${e.classId ?? ''}&subjectId=${e.subjectId ?? settings?.defaultSubjectId ?? ''}&lesson=${e.lessonNumber}&date=${date}`)
 
   const gName = (e: { groupId?: number; classId?: number }) => groups.find((g) => g.id === e.groupId)?.name ?? classes.find((c) => c.id === e.classId)?.name ?? ''
   const sAbbr = (id?: number) => subjects.find((s) => s.id === id)?.abbreviation ?? ''
@@ -99,6 +105,7 @@ export function TimetablePage() {
                               <div className="font-bold">{e.kind === 'krouzek' ? (e.title || 'Kroužek') : e.status === 'substitution' ? `Supl. ${sAbbr(e.subjectId)}` : sAbbr(e.subjectId)}</div>
                               <div className="truncate px-1">{gName(e) || e.title || ''}</div>
                               {e.room && <div className="opacity-80">uč. {e.room}</div>}
+                              {logFor(date, e) && e.status !== 'cancelled' && <div className="mt-0.5 inline-flex items-center gap-0.5 rounded bg-white/80 px-1 text-[10px] text-green-700" title={logFor(date, e)!.topic}><Check size={10} /> zapsáno</div>}
                               {es.length > 1 && <div className="text-[10px] text-amber-700 no-underline">+ supl.</div>}
                             </>
                           )}
@@ -127,6 +134,11 @@ export function TimetablePage() {
       <Modal open={!!pick} onClose={() => setPick(null)} title={pick ? `${WEEKDAYS[days.findIndex((d) => d.date === pick.date)]} ${fmtDate(pick.date)} · ${pick.lessonNumber}. hodina (${lessonRange(pick.lessonNumber)})` : ''}>
         {pick && (
           <div className="space-y-2 text-sm">
+            {pick.entry && pick.entry.status !== 'cancelled' && (pick.entry.groupId || pick.entry.classId) && (
+              logFor(pick.date, pick.entry)
+                ? <button className="btn-secondary w-full justify-start" onClick={() => { navigate('/zapisy'); setPick(null) }}><Check size={14} /> Hodina je zapsána: {logFor(pick.date, pick.entry)!.topic}</button>
+                : <button className="btn-primary w-full justify-start" onClick={() => { logLesson(pick.date, pick.entry!); setPick(null) }}>Zapsat hodinu ({fmtDate(pick.date, 'd. M.')})</button>
+            )}
             {pick.entry && pick.entry.status === 'regular' && (
               <>
                 <p className="text-slate-600">Pravidelně: <b>{pick.entry.kind === 'krouzek' ? pick.entry.title : sAbbr(pick.entry.subjectId)}</b> {gName(pick.entry)}</p>

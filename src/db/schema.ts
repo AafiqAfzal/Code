@@ -8,6 +8,8 @@ export interface Settings {
   schoolYear: string // např. "2026/2027"
   yearStart: string // ISO datum
   yearEnd: string
+  /** Poslední den 1. pololetí (výchozí 31. 1.). */
+  term1End?: string
   skolaOnlineUrl: string
   /** Předmět, který je vybrán jako výchozí (např. Anglický jazyk). */
   defaultSubjectId?: number

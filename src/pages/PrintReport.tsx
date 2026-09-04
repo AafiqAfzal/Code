@@ -7,6 +7,7 @@ import { useCategories, useClasses, useGroups, useScale, useSettings, useStudent
 import { PageHeader } from '../components/ui'
 import { NOTE_KINDS, fmtDate, fullName, todayISO } from '../lib/format'
 import { effectiveGrade, percentOf, proposedGrade, weightedAverage } from '../lib/grading'
+import { TERM_LABEL, currentTerm, termRange, type Term } from '../lib/terms'
 
 export function PrintReportPage() {
   const [params, setParams] = useSearchParams()
@@ -21,7 +22,9 @@ export function PrintReportPage() {
   const onlyStudentId = Number(params.get('studentId')) || undefined
   const subjectId = Number(params.get('subjectId')) || groups.find((g) => g.id === groupId)?.subjectId || settings?.defaultSubjectId || subjects[0]?.id
   const [opts, setOpts] = useState({ grades: true, absence: true, notes: false, evaluation: true, signature: true })
-  const [dateFrom, setDateFrom] = useState(settings?.yearStart ?? '2026-09-01')
+  const [term, setTerm] = useState<Term | null>(null)
+  const activeTerm: Term = term ?? (settings ? currentTerm(settings) : 0)
+  const { from: dateFrom, to: dateTo } = termRange(activeTerm, settings)
   const group = groups.find((g) => g.id === groupId)
   const roster = useMemo(() => {
     const base = group ? students.filter((s) => group.studentIds.includes(s.id)) : onlyStudentId ? students.filter((s) => s.id === onlyStudentId) : []
@@ -30,12 +33,13 @@ export function PrintReportPage() {
   const ids = roster.map((s) => s.id)
   const data = useLiveQuery(async () => {
     if (!ids.length || !subjectId) return null
-    const assessments = (await db.assessments.where('subjectId').equals(subjectId).toArray()).filter((a) => ids.includes(a.studentId) && a.date >= dateFrom)
-    const logs = (await db.lessonLogs.toArray()).filter((l) => l.date >= dateFrom && (groupId ? l.groupId === groupId : true))
-    const notes = (await db.studentNotes.toArray()).filter((n) => ids.includes(n.studentId) && n.date >= dateFrom)
-    const evals = (await db.termEvaluations.toArray()).filter((e) => ids.includes(e.studentId) && e.subjectId === subjectId)
+    const inRange = (d: string) => d >= dateFrom && d <= dateTo
+    const assessments = (await db.assessments.where('subjectId').equals(subjectId).toArray()).filter((a) => ids.includes(a.studentId) && inRange(a.date))
+    const logs = (await db.lessonLogs.toArray()).filter((l) => inRange(l.date) && (groupId ? l.groupId === groupId : true))
+    const notes = (await db.studentNotes.toArray()).filter((n) => ids.includes(n.studentId) && inRange(n.date))
+    const evals = (await db.termEvaluations.toArray()).filter((e) => ids.includes(e.studentId) && e.subjectId === subjectId && (activeTerm === 0 || e.term === activeTerm))
     return { assessments, logs, notes, evals }
-  }, [ids.join(','), subjectId, dateFrom, groupId])
+  }, [ids.join(','), subjectId, dateFrom, dateTo, groupId, activeTerm])
   const subject = subjects.find((s) => s.id === subjectId)
   const catName = (id: number) => categories.find((c) => c.id === id)?.name ?? ''
 
@@ -53,7 +57,7 @@ export function PrintReportPage() {
             <select className="input w-auto" value={subjectId ?? ''} onChange={(e) => setParams({ ...Object.fromEntries(params), subjectId: e.target.value })}>{subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
           <div><div className="label">Jen žák</div>
             <select className="input w-auto" value={onlyStudentId ?? ''} onChange={(e) => setParams({ ...Object.fromEntries(params), studentId: e.target.value })}><option value="">všichni ve skupině</option>{(group ? students.filter((s) => group.studentIds.includes(s.id)) : students).map((s) => <option key={s.id} value={s.id}>{fullName(s)}</option>)}</select></div>
-          <div><div className="label">Od data</div><input type="date" className="input w-auto" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} /></div>
+          <div><div className="label">Období</div><select className="input w-auto" value={activeTerm} onChange={(e) => setTerm(Number(e.target.value) as Term)}>{([1, 2, 0] as Term[]).map((t) => <option key={t} value={t}>{TERM_LABEL[t]}</option>)}</select></div>
           <div className="flex flex-wrap gap-3 text-sm pb-1">
             {([['grades', 'známky'], ['absence', 'absence'], ['evaluation', 'slovní hodnocení'], ['notes', 'poznámky (pochvaly, napomenutí)'], ['signature', 'podpis rodiče']] as const).map(([k, l]) => (
               <label key={k} className="flex items-center gap-1"><input type="checkbox" checked={opts[k]} onChange={(e) => setOpts({ ...opts, [k]: e.target.checked })} /> {l}</label>
@@ -76,11 +80,11 @@ export function PrintReportPage() {
                 <div className="text-lg font-bold">{fullName(s)} <span className="font-normal text-slate-500">· {cls?.name ?? ''}</span></div>
                 <div className="text-slate-600">{subject?.name} · {settings?.schoolYear} · {settings?.schoolName}</div>
               </div>
-              <div className="text-right text-xs text-slate-500">Vyučující: {settings?.teacherName}<br />Vytištěno {fmtDate(todayISO())} · období od {fmtDate(dateFrom)}</div>
+              <div className="text-right text-xs text-slate-500">Vyučující: {settings?.teacherName}<br />Vytištěno {fmtDate(todayISO())} · {TERM_LABEL[activeTerm]} ({fmtDate(dateFrom)} – {fmtDate(dateTo)})</div>
             </div>
             {opts.grades && (
               <section className="mb-3">
-                <h3 className="font-semibold mb-1">Průběžné hodnocení</h3>
+                <h3 className="font-semibold mb-1">Průběžné hodnocení – {TERM_LABEL[activeTerm]}</h3>
                 {mine.length === 0 ? <p className="text-slate-500">Zatím bez známek.</p> : (
                   <table className="table text-xs">
                     <thead><tr><th>Datum</th><th>Hodnocení</th><th>Kategorie</th><th className="text-center">Váha</th><th className="text-center">Výsledek</th></tr></thead>

@@ -3,10 +3,11 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Plus } from 'lucide-react'
 import { db, type Student, type StudentNoteKind } from '../db/schema'
-import { useCategories, useClasses, useGroups, useScale, useSubjects } from '../components/hooks'
+import { useCategories, useClasses, useGroups, useScale, useSettings, useSubjects } from '../components/hooks'
 import { Badge, ConfirmButton, Field, PageHeader } from '../components/ui'
 import { NOTE_KINDS, fmtDate, fullName, todayISO } from '../lib/format'
 import { GRADE_COLORS, avgColor, effectiveGrade, percentOf, proposedGrade, weightedAverage } from '../lib/grading'
+import { termRange } from '../lib/terms'
 
 const TAG_SUGGESTIONS = ['IVP', 'PLPP', 'SPU', 'ADHD', 'nadaný', 'cizinec', 'OMJ', 'asistent']
 
@@ -20,6 +21,7 @@ export function StudentDetail() {
   const subjects = useSubjects()
   const categories = useCategories()
   const scale = useScale()
+  const settings = useSettings()
   const notes = useLiveQuery(() => db.studentNotes.where('studentId').equals(studentId).reverse().sortBy('date'), [studentId]) ?? []
   const assessments = useLiveQuery(() => db.assessments.where('studentId').equals(studentId).toArray(), [studentId]) ?? []
   const evals = useLiveQuery(() => db.termEvaluations.where('studentId').equals(studentId).toArray(), [studentId]) ?? []
@@ -117,11 +119,14 @@ export function StudentDetail() {
               {subjects.filter((s) => assessments.some((a) => a.subjectId === s.id) || myGroups.some((g) => g.subjectId === s.id)).map((s) => {
                 const mine = assessments.filter((a) => a.subjectId === s.id).sort((a, b) => b.date.localeCompare(a.date))
                 const avg = weightedAverage(mine, scale)
+                const t1 = termRange(1, settings), t2 = termRange(2, settings)
+                const avg1 = weightedAverage(mine.filter((a) => a.date >= t1.from && a.date <= t1.to), scale)
+                const avg2 = weightedAverage(mine.filter((a) => a.date >= t2.from && a.date <= t2.to), scale)
                 return (
                   <div key={s.id}>
                     <div className="flex items-center justify-between mb-1">
                       <div className="font-semibold">{s.name}</div>
-                      <div className="text-sm">Vážený průměr: <span className={`font-bold ${avgColor(avg)}`}>{avg ?? '—'}</span>{avg != null && <span className="text-slate-400"> · návrh {proposedGrade(avg)}</span>}</div>
+                      <div className="text-sm">1. pol.: <span className={`font-bold ${avgColor(avg1)}`}>{avg1 ?? '—'}</span>{avg1 != null && <span className="text-slate-400"> ({proposedGrade(avg1)})</span>} · 2. pol.: <span className={`font-bold ${avgColor(avg2)}`}>{avg2 ?? '—'}</span>{avg2 != null && <span className="text-slate-400"> ({proposedGrade(avg2)})</span>} · rok: <span className={`font-bold ${avgColor(avg)}`}>{avg ?? '—'}</span></div>
                     </div>
                     <div className="flex flex-wrap gap-1 mb-2">
                       {mine.map((a) => {

@@ -8,6 +8,7 @@ import { ConfirmButton, Field, Modal, PageHeader, Toast, useToast } from '../com
 import { fmtDate, fullName, todayISO } from '../lib/format'
 import { GRADE_COLORS, avgColor, effectiveGrade, percentOf, proposedGrade, weightedAverage } from '../lib/grading'
 import { exportGradesXlsx } from '../lib/export'
+import { TERM_LABEL, currentTerm, termRange, type Term } from '../lib/terms'
 
 /** Sloupec = hodnocení sdílené celou skupinou (stejné datum + název + kategorie). */
 interface Column { key: string; date: string; title: string; categoryId: number; weight: number; maxPoints?: number }
@@ -22,6 +23,9 @@ export function GradesPage() {
   const categories = useCategories()
   const scale = useScale()
   const { message, show } = useToast()
+  const [term, setTerm] = useState<Term | null>(null)
+  const activeTerm: Term = term ?? (settings ? currentTerm(settings) : 0)
+  const range = termRange(activeTerm, settings)
 
   const subjectId = Number(params.get('subjectId')) || settings?.defaultSubjectId || subjects[0]?.id
   const groupId = Number(params.get('groupId')) || undefined
@@ -36,8 +40,8 @@ export function GradesPage() {
   const assessments = useLiveQuery(async () => {
     if (!subjectId || rosterIds.length === 0) return []
     const all = await db.assessments.where('subjectId').equals(subjectId).toArray()
-    return all.filter((a) => rosterIds.includes(a.studentId))
-  }, [subjectId, rosterIds.join(',')]) ?? []
+    return all.filter((a) => rosterIds.includes(a.studentId) && a.date >= range.from && a.date <= range.to)
+  }, [subjectId, rosterIds.join(','), range.from, range.to]) ?? []
 
   const columns: Column[] = useMemo(() => {
     const map = new Map<string, Column>()
@@ -91,17 +95,18 @@ export function GradesPage() {
     await db.assessments.bulkDelete(ids)
   }
   const catOf = (id: number) => categories.find((c) => c.id === id)
-  const title = `${subjects.find((s) => s.id === subjectId)?.abbreviation ?? ''} ${group?.name ?? classes.find((c) => c.id === classId)?.name ?? ''} ${settings?.schoolYear ?? ''}`.trim()
+  const title = `${subjects.find((s) => s.id === subjectId)?.abbreviation ?? ''} ${group?.name ?? classes.find((c) => c.id === classId)?.name ?? ''} ${settings?.schoolYear ?? ''} ${activeTerm ? TERM_LABEL[activeTerm] : ''}`.trim()
 
   return (
     <div>
-      <PageHeader title="Hodnocení" subtitle="Průběžná klasifikace podle vah kategorií" actions={
+      <PageHeader title="Hodnocení" subtitle={`Průběžná klasifikace podle vah kategorií · ${TERM_LABEL[activeTerm]}`} actions={
         <>
           <select className="input w-auto" value={subjectId ?? ''} onChange={(e) => setParams({ ...Object.fromEntries(params), subjectId: e.target.value })}>{subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
           <select className="input w-auto" value={groupId ? `g${groupId}` : classId ? `c${classId}` : ''} onChange={(e) => { const v = e.target.value; setParams({ subjectId: String(subjectId ?? ''), ...(v.startsWith('g') ? { groupId: v.slice(1) } : { classId: v.slice(1) }) }) }}>
             <optgroup label="Skupiny">{groups.map((g) => <option key={g.id} value={`g${g.id}`}>{g.name}</option>)}</optgroup>
             <optgroup label="Celé třídy">{classes.map((c) => <option key={c.id} value={`c${c.id}`}>{c.name}</option>)}</optgroup>
           </select>
+          <select className="input w-auto" value={activeTerm} onChange={(e) => setTerm(Number(e.target.value) as Term)} title="Pololetí">{([1, 2, 0] as Term[]).map((t) => <option key={t} value={t}>{TERM_LABEL[t]}</option>)}</select>
           <button className="btn-secondary" title="Vylosovat žáka" onClick={() => roster.length && setPicked(fullName(roster[Math.floor(Math.random() * roster.length)]))}><Shuffle size={16} /></button>
           <button className="btn-secondary" disabled={!roster.length} onClick={() => exportGradesXlsx({ students: roster, assessments, categories, scale, title })}><Download size={16} /> Export XLSX</button>
           <button className="btn-primary" disabled={!roster.length} onClick={() => setNewCol({ title: '', date: todayISO(), categoryId: categories[1]?.id ?? categories[0]?.id, weight: categories[1]?.weight ?? categories[0]?.weight ?? 1 })}><Plus size={16} /> Nové hodnocení</button>
