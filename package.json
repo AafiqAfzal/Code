@@ -1,23 +1,30 @@
 {
   "name": "pedagogicky-denik",
   "private": true,
-  "version": "2.1.0",
+  "version": "3.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "electron:dev": "vite build && electron .",
-    "electron:build": "vite build && electron-builder --win",
-    "electron:build:linux": "vite build && electron-builder --linux"
+    "tauri": "tauri",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build"
   },
   "dependencies": {
-    "electron-updater": "^6.8.9",
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-dialog": "^2.7.3",
+    "@tauri-apps/plugin-fs": "^2.5.2",
+    "@tauri-apps/plugin-notification": "^2.4.0",
+    "@tauri-apps/plugin-opener": "^2.5.5",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.11.0",
     "exceljs": "^4.4.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
+    "@tauri-apps/cli": "^2.11.4",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
@@ -25,8 +32,6 @@
     "date-fns": "^4.4.0",
     "dexie": "^4.4.5",
     "dexie-react-hooks": "^4.4.0",
-    "electron": "^44.1.1",
-    "electron-builder": "^26.15.3",
     "jszip": "^3.10.1",
     "lucide-react": "^1.39.0",
     "mammoth": "^1.12.2",
@@ -41,74 +46,5 @@
     "xlsx": "^0.18.5"
   },
   "description": "Pedagogický deník pro učitele ZŠ",
-  "author": "",
-  "main": "electron/main.cjs",
-  "build": {
-    "appId": "cz.skola.pedagogicky-denik",
-    "productName": "Pedagogický deník",
-    "artifactName": "PedagogickyDenik-${version}-${os}-${arch}.${ext}",
-    "directories": {
-      "output": "release",
-      "buildResources": "build"
-    },
-    "files": [
-      "dist/**/*",
-      "electron/**/*",
-      "build/icon.png",
-      "!**/*.map"
-    ],
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "icon": "build/icon.png"
-    },
-    "nsis": {
-      "oneClick": true,
-      "perMachine": false,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "Pedagogický deník",
-      "artifactName": "PedagogickyDenik-Setup-${version}.${ext}",
-      "language": "1029"
-    },
-    "portable": {
-      "artifactName": "PedagogickyDenik-Portable-${version}.${ext}"
-    },
-    "linux": {
-      "target": [
-        "AppImage"
-      ],
-      "category": "Education",
-      "icon": "build/icon.png"
-    },
-    "mac": {
-      "target": [
-        "dmg"
-      ],
-      "icon": "build/icon.png"
-    },
-    "publish": {
-      "provider": "github",
-      "owner": "AafiqAfzal",
-      "repo": "Code",
-      "releaseType": "release"
-    },
-    "compression": "maximum",
-    "electronLanguages": [
-      "cs",
-      "en-US"
-    ]
-  }
+  "author": ""
 }

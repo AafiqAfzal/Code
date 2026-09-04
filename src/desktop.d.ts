@@ -1,4 +1,4 @@
-/** Rozhraní dostupné jen v desktopové verzi (Electron), viz electron/preload.cjs */
+/** Rozhraní dostupné jen v desktopové verzi (Tauri), viz src/lib/tauriBridge.ts */
 interface DenikDesktop {
   isDesktop: true
   autoBackup: (json: string) => Promise<string>
@@ -11,6 +11,10 @@ interface DenikDesktop {
   updateState: () => Promise<UpdateState>
   onUpdateState: (handler: (state: UpdateState) => void) => () => void
   onMenu: (channel: 'menu:backup-save-as', handler: () => void) => () => void
+  /** Seznam záloh ve složce Dokumenty (nejnovější první) – jen Tauri */
+  listBackups?: () => Promise<string[]>
+  readBackup?: (name: string) => Promise<string>
+  openExternal?: (url: string) => Promise<void>
 }
 interface UpdateState {
   status: 'idle' | 'checking' | 'downloading' | 'up-to-date' | 'ready' | 'error' | 'dev'

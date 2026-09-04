@@ -35,31 +35,32 @@ Pro přenos mezi počítači slouží záloha ve formátu JSON (Nastavení → Z
 
 ## Desktopová aplikace pro Windows (doporučeno)
 
-Aplikaci lze nainstalovat jako běžný program: ikona na ploše, data uložená
-v profilu aplikace na daném počítači, automatická záloha jednou denně do složky
-`Dokumenty\Pedagogický deník\zalohy` (uchovává se posledních 30 záloh).
+Aplikace je postavená na [Tauri](https://tauri.app): používá prohlížečové jádro WebView2,
+které je součástí Windows 10/11, takže instalátor má jen několik megabajtů. Data zůstávají
+v profilu aplikace na daném počítači, automatická záloha se ukládá jednou denně do
+`Dokumenty\Pedagogický deník\zalohy` (posledních 30 záloh).
 
-1. Otevřete stránku **Releases** repozitáře na GitHubu a stáhněte
-   `PedagogickyDenik-Setup-<verze>.exe` (instalace bez práv správce)
-   nebo `PedagogickyDenik-Portable-<verze>.exe` (bez instalace, stačí spustit).
+1. Otevřete stránku **Releases** repozitáře a stáhněte `Pedagogicky-denik_<verze>_x64-setup.exe`
+   (instalace bez práv správce).
 2. Windows může zobrazit varování SmartScreen, protože aplikace není podepsaná
    certifikátem: klikněte na *Další informace* → *Přesto spustit*.
-3. Po spuštění: Import dat → seznam žáků, Rozvrh, Tematické plány.
+3. Při prvním spuštění aplikace nabídne obnovu dat ze zálohy předchozí verze, pokud ji
+   najde ve složce Dokumenty.
 
-**Aktualizace:** nainstalovaná aplikace si při spuštění sama zkontroluje nové vydání na GitHubu,
-stáhne je a po potvrzení (nebo při ukončení) nainstaluje. Data zůstávají zachována.
-Stav a ruční kontrola: Nastavení → Aktualizace aplikace.
+**Aktualizace:** aplikace si při spuštění zkontroluje nové vydání na GitHubu, stáhne je a po
+potvrzení se restartuje. Aktualizační balíčky jsou podepsané; soukromý klíč je uložen jako
+tajemství repozitáře `TAURI_SIGNING_PRIVATE_KEY` (a případně
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`), veřejný klíč je v `src-tauri/tauri.conf.json`.
 
 Instalátor sestavuje workflow `.github/workflows/desktop.yml` (ručně přes
 *Actions → Desktop app → Run workflow*, nebo automaticky po vytvoření tagu `v1.x.y`).
 Novou verzi vydáte zvýšením `version` v `package.json` a spuštěním workflow.
 
-Lokální sestavení desktopové verze:
+Lokální sestavení desktopové verze (vyžaduje Rust a na Linuxu balíčky WebKitGTK):
 
 ```bash
-npm run electron:dev          # spustí desktopové okno nad produkčním sestavením
-npm run electron:build        # instalátor pro Windows do složky release/
-npm run electron:build:linux  # AppImage pro Linux
+npm run desktop:dev     # okno aplikace nad vývojovým serverem
+npm run desktop:build   # instalátor pro aktuální platformu do src-tauri/target/release/bundle
 ```
 
 ## Spuštění ve vývojovém režimu (prohlížeč)
@@ -78,7 +79,7 @@ z hlavní větve (v nastavení repozitáře zapněte Pages → Source: GitHub Ac
 
 ## Technologie
 
-React 19, TypeScript, Vite, Tailwind CSS 4, Dexie (IndexedDB), react-router,
+React 19, TypeScript, Vite, Tailwind CSS 4, Dexie (IndexedDB), react-router, Tauri 2 (desktop),
 [mammoth](https://github.com/mwilliamson/mammoth.js) (čtení .docx),
 [SheetJS](https://sheetjs.com/) (čtení a zápis Excelu), date-fns, lucide-react.
 

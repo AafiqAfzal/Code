@@ -17,8 +17,11 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
       - run: npm ci
-      - run: npm run build
       - name: Read version
         id: v
         shell: bash
@@ -35,27 +38,23 @@ jobs:
             git tag "$TAG"
             git push origin "$TAG"
           fi
-      # Publikování nechá na kroku níže (paralelní nahrávání electron-builderem
-      # občas selže na „release already exists“); latest.yml se přesto vygeneruje.
-      - run: npx electron-builder --win --publish never
-      - uses: actions/upload-artifact@v4
+      # Sestaví instalátor (NSIS), podepíše aktualizační balíček a zveřejní vydání
+      # včetně latest.json pro automatické aktualizace.
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          name: PedagogickyDenik-windows
-          path: |
-            release/*.exe
-      - name: Publish release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.v.outputs.version }}
-          name: Pedagogický deník ${{ steps.v.outputs.version }}
-          body: |
-            **Instalace (Windows):** stáhněte `PedagogickyDenik-Setup-${{ steps.v.outputs.version }}.exe` a spusťte. Nepotřebuje práva správce, vytvoří ikonu na ploše.
-            **Bez instalace:** `PedagogickyDenik-Portable-${{ steps.v.outputs.version }}.exe` stačí spustit.
+          tagName: v${{ steps.v.outputs.version }}
+          releaseName: Pedagogický deník ${{ steps.v.outputs.version }}
+          releaseBody: |
+            **Instalace (Windows):** stáhněte `Pedagogicky-denik_${{ steps.v.outputs.version }}_x64-setup.exe` a spusťte. Nepotřebuje práva správce, vytvoří ikonu na ploše.
 
-            Nainstalovaná aplikace se na tuto verzi aktualizuje sama (Nastavení → Aktualizace aplikace).
+            Nainstalovaná aplikace se na další verze aktualizuje sama (Nastavení → Aktualizace aplikace).
 
             Windows může zobrazit varování SmartScreen (aplikace není podepsaná certifikátem) – klikněte na „Další informace“ → „Přesto spustit“.
-          files: |
-            release/*.exe
-            release/latest.yml
-            release/*.blockmap
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          args: --target x86_64-pc-windows-msvc

@@ -1,0 +1,23 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Oprávnění hlavního okna: zálohy do Dokumentů, dialogy, oznámení, aktualizace",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-title",
+    "dialog:default",
+    "notification:default",
+    "opener:default",
+    "process:default",
+    "updater:default",
+    "fs:default",
+    "fs:allow-document-read-recursive",
+    "fs:allow-document-write-recursive",
+    "fs:allow-document-meta-recursive",
+    {
+      "identifier": "fs:scope",
+      "allow": [{ "path": "$DOCUMENT" }, { "path": "$DOCUMENT/**" }]
+    }
+  ]
+}

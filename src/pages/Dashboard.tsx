@@ -4,6 +4,8 @@ import { addDays } from 'date-fns'
 import { CalendarDays, ClipboardList, ListChecks, BookOpenCheck, Sparkles, BellRing, Check } from 'lucide-react'
 import { db } from '../db/schema'
 import { loadDemoData } from '../db/seed'
+import { importBackup } from '../lib/backup'
+import { useEffect, useState } from 'react'
 import { useClasses, useGroups, useSettings, useStudents, useSubjects } from '../components/hooks'
 import { Badge, EmptyState, PageHeader } from '../components/ui'
 import { EVENT_KINDS, daysToBirthday, ageFrom, fmtDate, lessonRange, todayISO } from '../lib/format'
@@ -41,11 +43,30 @@ export function Dashboard() {
   const subjectIdOf = (e: { subjectId?: number }) => e.subjectId ?? settings?.defaultSubjectId ?? subjects[0]?.id ?? ''
   const studentName = (id: number) => { const s = students.find((x) => x.id === id); return s ? `${s.lastName} ${s.firstName}` : '' }
   const isEmpty = classes.length === 0 && students.length === 0
+  const [backups, setBackups] = useState<string[]>([])
+  const [restoreMsg, setRestoreMsg] = useState('')
+  useEffect(() => { if (isEmpty && window.denik?.listBackups) window.denik.listBackups().then(setBackups).catch(() => {}) }, [isEmpty])
+  const restoreLatest = async () => {
+    if (!window.denik?.readBackup || !backups[0]) return
+    try { const text = await window.denik.readBackup(backups[0]); await importBackup(new File([text], backups[0], { type: 'application/json' }), 'replace'); setRestoreMsg('Data obnovena.'); location.reload() } catch (e) { setRestoreMsg(`Obnova selhala: ${(e as Error).message}`) }
+  }
   const birthdays = students.map((s) => ({ s, d: daysToBirthday(s.birthDate) })).filter((x) => x.d != null && x.d <= 7).sort((a, b) => a.d! - b.d!)
 
   return (
     <div>
       <PageHeader title={`Dobrý den${settings?.teacherName ? `, ${settings.teacherName}` : ''}`} subtitle={fmtDate(today, 'EEEE d. MMMM yyyy')} />
+      {isEmpty && backups.length > 0 && (
+        <div className="card card-body mb-4 border-green-200 bg-green-50">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="font-semibold text-green-900">Našel jsem zálohu z předchozí verze</div>
+              <p className="text-sm text-green-800">Ve složce Dokumenty je záloha <b>{backups[0]}</b>. Obnovím z ní všechna data (žáky, známky, zápisy, rozvrh, plány, šablonu výkazu).</p>
+              {restoreMsg && <p className="text-sm text-green-900">{restoreMsg}</p>}
+            </div>
+            <button className="btn-primary" onClick={restoreLatest}>Obnovit data ze zálohy</button>
+          </div>
+        </div>
+      )}
       {isEmpty && (
         <div className="card card-body mb-4 border-blue-200 bg-blue-50">
           <div className="flex flex-wrap items-center justify-between gap-3">
