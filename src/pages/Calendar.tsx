@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
-import { addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, getISODay, isSameMonth, startOfMonth, startOfWeek } from 'date-fns'
+import { useEffect, useState } from 'react'
+import { addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, getISODay, isSameMonth, parseISO, startOfMonth, startOfWeek } from 'date-fns'
+import { useSearchParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { db, type CalendarEvent, type EventKind } from '../db/schema'
 import { useClasses, useGroups, useSubjects } from '../components/hooks'
@@ -13,7 +14,9 @@ type Draft = Omit<CalendarEvent, 'id'> & { id?: number }
 const emptyDraft = (date: string): Draft => ({ title: '', kind: 'test', date, done: false })
 
 export function CalendarPage() {
-  const [month, setMonth] = useState(startOfMonth(new Date()))
+  const [params] = useSearchParams()
+  const [month, setMonth] = useState(startOfMonth(params.get('date') ? parseISO(params.get('date')!) : new Date()))
+  useEffect(() => { const d = params.get('date'); if (d) setMonth(startOfMonth(parseISO(d))) }, [params])
   const [draft, setDraft] = useState<Draft | null>(null)
   const [filter, setFilter] = useState<EventKind | ''>('')
   const groups = useGroups()
