@@ -1,10 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Download } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { db } from '../db/schema'
-import { useClasses, useGroups, useMyGroups, useSettings, useStudents } from '../components/hooks'
+import { useClasses, useGroups, useSettings, useStudents, useSubjects, useTeachingUnits } from '../components/hooks'
 import { PageHeader } from '../components/ui'
 import { MONTHS, fmtDate, fullName, genderClass } from '../lib/format'
 
@@ -14,11 +14,23 @@ export function AttendancePage() {
   const [params, setParams] = useSearchParams()
   const settings = useSettings()
   const groups = useGroups()
-  const myGroups = useMyGroups()
   const classes = useClasses()
+  const subjects = useSubjects()
   const students = useStudents()
   const groupId = Number(params.get('groupId')) || undefined
   const classId = Number(params.get('classId')) || undefined
+  const slots = useLiveQuery(() => db.timetable.toArray(), []) ?? []
+  // Předmět: z parametru, jinak podle skupiny, jinak předmět, ve kterém třídu učím vcelku (z rozvrhu), jinak výchozí
+  const subjectId = Number(params.get('subjectId')) || groups.find((g) => g.id === groupId)?.subjectId || (classId ? slots.find((sl) => sl.classId === classId && !sl.groupId)?.subjectId : undefined) || settings?.defaultSubjectId || subjects[0]?.id
+  const units = useTeachingUnits(subjectId)
+  const setSel = (patch: Record<string, string>) => setParams({ subjectId: String(subjectId ?? ''), ...patch }, { replace: true })
+  useEffect(() => {
+    const fits = (groupId && units.groups.some((g) => g.id === groupId)) || (classId && units.classes.some((c) => c.id === classId))
+    if (fits || (groupId && groups.some((g) => g.id === groupId))) return
+    const first: Record<string, string> | null = units.groups[0] ? { groupId: String(units.groups[0].id) } : units.classes[0] ? { classId: String(units.classes[0].id) } : null
+    if (first) setSel(first)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subjectId, units.groups.length, units.classes.length])
   const [month, setMonth] = useState('')
   const sel = groupId ? `g${groupId}` : classId ? `c${classId}` : ''
   const group = groups.find((g) => g.id === groupId)
@@ -44,10 +56,11 @@ export function AttendancePage() {
     <div>
       <PageHeader title="Docházka" subtitle="Absence podle zápisů z hodin" actions={
         <>
-          <select className="input w-auto" value={sel} onChange={(e) => { const v = e.target.value; setParams(v.startsWith('g') ? { groupId: v.slice(1) } : v ? { classId: v.slice(1) } : {}) }}>
+          <select className="input w-auto" value={subjectId ?? ''} onChange={(e) => setParams({ subjectId: e.target.value })}>{subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+          <select className="input w-auto" value={sel} onChange={(e) => { const v = e.target.value; setSel(v.startsWith('g') ? { groupId: v.slice(1) } : v ? { classId: v.slice(1) } : {}) }}>
             <option value="">— vyberte —</option>
-            <optgroup label="Skupiny">{myGroups.map((g) => <option key={g.id} value={`g${g.id}`}>{g.name}</option>)}</optgroup>
-            <optgroup label="Třídy">{classes.map((c) => <option key={c.id} value={`c${c.id}`}>{c.name}</option>)}</optgroup>
+            {units.groups.length > 0 && <optgroup label="Skupiny">{units.groups.map((g) => <option key={g.id} value={`g${g.id}`}>{g.name}</option>)}</optgroup>}
+            {units.classes.length > 0 && <optgroup label="Třídy">{units.classes.map((c) => <option key={c.id} value={`c${c.id}`}>{c.name}</option>)}</optgroup>}
           </select>
           <select className="input w-auto" value={month} onChange={(e) => setMonth(e.target.value)}><option value="">Celý rok</option>{MONTHS.map((m) => <option key={m} value={m}>{m}</option>)}</select>
           <button className="btn-secondary" disabled={!roster.length} onClick={exportXlsx}><Download size={16} /> Export XLSX</button>
