@@ -5,6 +5,7 @@ import { Download, Printer, RefreshCw, Save } from 'lucide-react'
 import { db, type WorkDay, type WorkMonth } from '../db/schema'
 import { useSettings } from '../components/hooks'
 import { Field, PageHeader, Toast, useToast } from '../components/ui'
+import { SettingsTabs } from '../components/Layout'
 import { WEEKDAYS_SHORT, fmtDate } from '../lib/format'
 import { holidayName, schoolHolidayName } from '../lib/holidays'
 import { WORK_CODES, WORK_CODE_LABEL, addHours, autoFillMonth, dateOf, daysInMonth, fillTemplate, monthTotals } from '../lib/workReport'
@@ -79,6 +80,7 @@ export function WorkReportPage() {
             <button className={dirty ? 'btn-primary' : 'btn-secondary'} onClick={save}><Save size={16} /> Uložit</button>
           </>
         } />
+        <SettingsTabs />
         {!template && <div className="mb-3 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Školní šablona výkazu není nahraná. Bez ní jde výkaz jen vytisknout z aplikace. Nahrajte ji v <Link to="/nastaveni" className="underline">Nastavení → Evidence pracovní doby</Link>.</div>}
         {draft && (
           <div className="card card-body mb-4 grid gap-3 md:grid-cols-5">
