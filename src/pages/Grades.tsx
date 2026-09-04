@@ -10,6 +10,19 @@ import { GRADE_COLORS, avgColor, effectiveGrade, percentOf, proposedGrade, weigh
 import { exportGradesXlsx } from '../lib/export'
 import { TERM_LABEL, currentTerm, termRange, type Term } from '../lib/terms'
 
+/** Klávesa → známka 1–5 / N / Delete; funguje s českým rozložením (+ěščř bez Shiftu), numerickou klávesnicí i řadou číslic. */
+function keyToGrade(e: React.KeyboardEvent): string | null {
+  const code = e.code
+  const m = code.match(/^(Digit|Numpad)([1-5])$/)
+  if (m) return m[2]
+  const cz: Record<string, string> = { '+': '1', 'ě': '2', 'š': '3', 'č': '4', 'ř': '5' }
+  if (/^[1-5]$/.test(e.key)) return e.key
+  if (cz[e.key]) return cz[e.key]
+  if (e.key === 'n' || e.key === 'N') return 'n'
+  if (e.key === 'Delete' || e.key === 'Backspace') return 'Delete'
+  return null
+}
+
 /** Sloupec = hodnocení sdílené celou skupinou (stejné datum + název + kategorie). */
 interface Column { key: string; date: string; title: string; categoryId: number; weight: number; maxPoints?: number }
 
@@ -32,9 +45,19 @@ export function GradesPage() {
   const groupId = Number(params.get('groupId')) || undefined
   const classId = Number(params.get('classId')) || undefined
   const group = groups.find((g) => g.id === groupId)
+  const slots = useLiveQuery(() => db.timetable.toArray(), []) ?? []
+  // Nabídka podle předmětu: moje skupiny daného předmětu + třídy, které v něm učím vcelku (podle rozvrhu)
+  const subjectGroups = useMemo(() => myGroups.filter((g) => !g.subjectId || g.subjectId === subjectId), [myGroups, subjectId])
+  const subjectClasses = useMemo(() => {
+    const taught = new Set(slots.filter((s) => s.subjectId === subjectId && s.classId && !s.groupId).map((s) => s.classId))
+    return taught.size ? classes.filter((c) => taught.has(c.id)) : (subjectGroups.length ? [] : classes)
+  }, [slots, subjectId, classes, subjectGroups.length])
   useEffect(() => {
-    if (!groupId && !classId && myGroups.length) setParams({ groupId: String(myGroups[0].id) }, { replace: true })
-  }, [groupId, classId, myGroups, setParams])
+    const fits = (groupId && subjectGroups.some((g) => g.id === groupId)) || (classId && subjectClasses.some((c) => c.id === classId))
+    if (fits) return
+    const first: Record<string, string> | null = subjectGroups[0] ? { groupId: String(subjectGroups[0].id) } : subjectClasses[0] ? { classId: String(subjectClasses[0].id) } : null
+    if (first) setParams({ subjectId: String(subjectId ?? ''), ...first }, { replace: true })
+  }, [groupId, classId, subjectGroups, subjectClasses, subjectId, setParams])
 
   const roster = useMemo(() => group ? students.filter((s) => group.studentIds.includes(s.id)) : classId ? students.filter((s) => s.classId === classId) : [], [group, classId, students])
   const rosterIds = roster.map((s) => s.id)
@@ -104,8 +127,8 @@ export function GradesPage() {
         <>
           <select className="input w-auto" value={subjectId ?? ''} onChange={(e) => setParams({ ...Object.fromEntries(params), subjectId: e.target.value })}>{subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
           <select className="input w-auto" value={groupId ? `g${groupId}` : classId ? `c${classId}` : ''} onChange={(e) => { const v = e.target.value; setParams({ subjectId: String(subjectId ?? ''), ...(v.startsWith('g') ? { groupId: v.slice(1) } : { classId: v.slice(1) }) }) }}>
-            <optgroup label="Skupiny">{myGroups.map((g) => <option key={g.id} value={`g${g.id}`}>{g.name}</option>)}</optgroup>
-            <optgroup label="Celé třídy">{classes.map((c) => <option key={c.id} value={`c${c.id}`}>{c.name}</option>)}</optgroup>
+            {subjectGroups.length > 0 && <optgroup label="Skupiny">{subjectGroups.map((g) => <option key={g.id} value={`g${g.id}`}>{g.name}</option>)}</optgroup>}
+            {subjectClasses.length > 0 && <optgroup label="Celé třídy">{subjectClasses.map((c) => <option key={c.id} value={`c${c.id}`}>{c.name}</option>)}</optgroup>}
           </select>
           <select className="input w-auto" value={activeTerm} onChange={(e) => setTerm(Number(e.target.value) as Term)} title="Pololetí">{([1, 2, 0] as Term[]).map((t) => <option key={t} value={t}>{TERM_LABEL[t]}</option>)}</select>
           <button className="btn-secondary" title="Vylosovat žáka" onClick={() => roster.length && setPicked(fullName(roster[Math.floor(Math.random() * roster.length)]))}><Shuffle size={16} /></button>
@@ -118,16 +141,16 @@ export function GradesPage() {
         <div className="card card-body text-sm text-slate-500">Vyberte skupinu nebo třídu s žáky. Skupiny vytvoříte v sekci <Link className="underline text-blue-700" to="/tridy">Třídy a skupiny</Link>.</div>
       ) : (
         <div className="card overflow-x-auto">
-          <table className="table whitespace-nowrap">
+          <table className="table !w-auto whitespace-nowrap">
             <thead>
               <tr>
                 <th className="sticky left-0 bg-slate-50 z-10">Žák</th>
                 {columns.map((c) => {
                   const cat = catOf(c.categoryId)
                   return (
-                    <th key={c.key} className="text-center min-w-20 group/col" style={{ borderTop: `3px solid ${cat?.color ?? '#94a3b8'}` }}>
-                      <div className="normal-case font-semibold text-slate-700 truncate max-w-32" title={c.title}>{c.title}</div>
-                      <div className="font-normal text-[10px] text-slate-400">{fmtDate(c.date, 'd.M.')} · {cat?.name ?? ''} · v{c.weight}{c.maxPoints ? ` · /${c.maxPoints}` : ''}</div>
+                    <th key={c.key} className="text-center min-w-14 max-w-24 px-1 group/col" style={{ borderTop: `3px solid ${cat?.color ?? '#94a3b8'}` }}>
+                      <div className="normal-case font-semibold text-slate-700 truncate text-center mx-auto" title={c.title}>{c.title}</div>
+                      <div className="font-normal text-[10px] text-slate-400 text-center whitespace-normal leading-tight" title={cat?.name}>{fmtDate(c.date, 'd.M.')} · v{c.weight}{c.maxPoints ? ` · /${c.maxPoints}` : ''}</div>
                       <ConfirmButton className="text-[10px] text-red-500 opacity-0 group-hover/col:opacity-100 no-print" onConfirm={() => deleteColumn(c)}>smazat sloupec</ConfirmButton>
                     </th>
                   )
@@ -149,9 +172,9 @@ export function GradesPage() {
                       const p = a ? percentOf(a) : undefined
                       return (
                         <td key={c.key} className="text-center p-0.5">
-                          <button tabIndex={0} onKeyDown={(e) => { if (e.key.length === 1 || e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); quickSet(s.id, c, e.key) } }}
-                            onClick={() => openCell(s.id, c)} title={a?.note || (p != null ? `${a?.points}/${a?.maxPoints} = ${p} %` : 'Klik = detail, klávesy 1–5 = známka, N = nehodnocen')}
-                            className={`h-8 w-full min-w-12 rounded border text-sm font-semibold focus:ring-2 focus:ring-blue-500 ${a?.absent ? 'bg-slate-100 text-slate-400 border-slate-200' : g != null ? GRADE_COLORS[g] : 'bg-white border-dashed border-slate-200 text-slate-300'}`}>
+                          <button tabIndex={0} onMouseEnter={(e) => e.currentTarget.focus()} onKeyDown={(e) => { const k = keyToGrade(e); if (k) { e.preventDefault(); quickSet(s.id, c, k) } }}
+                            onClick={() => openCell(s.id, c)} title={a?.note || (p != null ? `${a?.points}/${a?.maxPoints} = ${p} %` : 'Najeďte myší a stiskněte 1–5 (i na české klávesnici), N = nehodnocen, Delete = smazat; klik = detail')}
+                            className={`h-8 w-full min-w-9 rounded border text-sm font-semibold focus:ring-2 focus:ring-blue-500 ${a?.absent ? 'bg-slate-100 text-slate-400 border-slate-200' : g != null ? GRADE_COLORS[g] : 'bg-white border-dashed border-slate-200 text-slate-300'}`}>
                             {a?.absent ? 'N' : g ?? '·'}{p != null && <span className="block text-[9px] font-normal leading-none">{p} %</span>}
                           </button>
                         </td>
@@ -164,7 +187,7 @@ export function GradesPage() {
               })}
             </tbody>
           </table>
-          <div className="px-4 py-2 text-xs text-slate-400 no-print">Tip: označte buňku a stiskněte 1–5 pro rychlý zápis známky, N = nehodnocen, Delete = smazat. Klik otevře detail (body, poznámka, váha).</div>
+          <div className="px-4 py-2 text-xs text-slate-400 no-print">Tip: najeďte myší na buňku a stiskněte 1–5 (funguje i na české klávesnici bez Shiftu), N = nehodnocen, Delete = smazat. Klik otevře detail (body, poznámka, váha).</div>
         </div>
       )}
 
