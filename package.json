@@ -1,7 +1,7 @@
 {
   "name": "pedagogicky-denik",
   "private": true,
-  "version": "1.5.0",
+  "version": "1.6.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,16 +13,7 @@
     "electron:build:linux": "vite build && electron-builder --linux"
   },
   "dependencies": {
-    "date-fns": "^4.4.0",
-    "dexie": "^4.4.5",
-    "dexie-react-hooks": "^4.4.0",
-    "electron-updater": "^6.8.9",
-    "lucide-react": "^1.39.0",
-    "mammoth": "^1.12.2",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "react-router-dom": "^7.18.3",
-    "xlsx": "^0.18.5"
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
@@ -30,13 +21,22 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",
+    "date-fns": "^4.4.0",
+    "dexie": "^4.4.5",
+    "dexie-react-hooks": "^4.4.0",
     "electron": "^44.1.1",
     "electron-builder": "^26.15.3",
+    "lucide-react": "^1.39.0",
+    "mammoth": "^1.12.2",
     "oxlint": "^1.79.0",
     "playwright": "^1.62.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.3",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
-    "vite": "^8.2.2"
+    "vite": "^8.2.2",
+    "xlsx": "^0.18.5"
   },
   "description": "Pedagogický deník pro učitele ZŠ",
   "author": "",
@@ -52,7 +52,8 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
-      "build/icon.png"
+      "build/icon.png",
+      "!**/*.map"
     ],
     "win": {
       "target": [
@@ -101,6 +102,11 @@
       "owner": "AafiqAfzal",
       "repo": "Code",
       "releaseType": "release"
-    }
+    },
+    "compression": "maximum",
+    "electronLanguages": [
+      "cs",
+      "en-US"
+    ]
   }
 }
