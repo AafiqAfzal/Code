@@ -43,13 +43,13 @@ export const NOTE_KINDS: Record<string, { label: string; color: string }> = {
   podpora: { label: 'Podpůrná opatření', color: 'bg-purple-100 text-purple-800' },
 }
 
-/** Rozmezí hodin – index = číslo hodiny (1.–9. hodina; index 0 se nepoužívá). */
+/** Rozmezí hodin – index = číslo hodiny (1.–8. hodina; index 0 se nepoužívá). */
 export const LESSON_RANGES: (readonly [string, string] | null)[] = [
   null,
   ['8:00', '8:45'], ['8:50', '9:35'], ['9:50', '10:35'], ['10:45', '11:30'], ['11:40', '12:25'],
-  ['12:35', '13:20'], ['13:30', '14:15'], ['14:25', '15:10'], ['15:20', '16:05'],
+  ['12:35', '13:20'], ['13:30', '14:15'], ['14:25', '15:10'],
 ]
-export const LESSON_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+export const LESSON_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8]
 /** Začátek hodiny, např. "8:00". */
 export const LESSON_TIMES = LESSON_RANGES.map((r) => r?.[0] ?? '')
 /** Celé rozmezí, např. "8:00–8:45". */
