@@ -8,6 +8,7 @@ import { ConfirmButton, Field, Modal, PageHeader } from '../components/ui'
 import { LESSON_NUMBERS, WEEKDAYS, fmtDate, lessonRange } from '../lib/format'
 import { importTimetableFile, readJsonFile, type TimetableFile } from '../db/seed'
 import { CHANGE_REASONS, scheduleForDate, type ScheduleEntry } from '../lib/schedule'
+import { holidayName } from '../lib/holidays'
 
 type SlotDraft = Omit<TimetableSlot, 'id'> & { id?: number }
 type ChangeDraft = Omit<TimetableChange, 'id'> & { id?: number }
@@ -73,11 +74,13 @@ export function TimetablePage() {
             {days.map(({ name, date }) => {
               const entries = scheduleForDate(date, slots, changes)
               const wholeDay = changes.find((c) => c.date === date && c.kind === 'odpada' && c.lessonNumber == null)
+              const holiday = holidayName(date)
               return (
-                <tr key={date} className={date === today ? 'bg-blue-50/60' : ''}>
+                <tr key={date} className={holiday ? 'bg-rose-50' : date === today ? 'bg-blue-50/60' : ''}>
                   <td className="text-left align-top pt-2">
                     <div className="font-semibold">{name}</div>
                     <div className="text-xs text-slate-500">{fmtDate(date, 'd. M.')}</div>
+                    {holiday && <div className="mt-1 text-[11px] text-rose-700">svátek: {holiday}</div>}
                     {wholeDay && <div className="mt-1 text-[11px] text-red-700">odpadá: {wholeDay.note || 'celý den'}</div>}
                   </td>
                   {LESSON_NUMBERS.map((l) => {
@@ -86,7 +89,7 @@ export function TimetablePage() {
                     return (
                       <td key={l} className="p-0.5 align-top">
                         <button onClick={() => setPick({ date, lessonNumber: l, entry: e })}
-                          className={`h-16 w-full rounded border text-xs ${cellClass(e)}`} style={e && e.status === 'regular' && e.kind === 'hodina' ? { background: gColor(e.groupId) ?? '#2563eb' } : undefined}
+                          className={`h-16 w-full rounded border text-xs ${cellClass(e)} ${holiday ? 'opacity-40' : ''}`} style={e && e.status === 'regular' && e.kind === 'hodina' ? { background: gColor(e.groupId) ?? '#2563eb' } : undefined}
                           title={e?.reason ? `Odpadá: ${e.reason}` : e?.change?.note}>
                           {e && (
                             <>

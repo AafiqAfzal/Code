@@ -9,6 +9,7 @@ import { Badge, EmptyState, PageHeader } from '../components/ui'
 import { EVENT_KINDS, fmtDate, lessonRange, todayISO } from '../lib/format'
 import { collectReminders } from '../lib/reminders'
 import { scheduleForDate } from '../lib/schedule'
+import { holidayName } from '../lib/holidays'
 
 export function Dashboard() {
   const settings = useSettings()
@@ -85,6 +86,7 @@ export function Dashboard() {
             <Link to="/rozvrh" className="text-xs text-blue-700 hover:underline">Rozvrh</Link>
           </div>
           <div className="card-body">
+            {holidayName(today) && <p className="mb-2 rounded bg-rose-50 border border-rose-200 p-2 text-sm text-rose-800">Dnes je státní svátek: {holidayName(today)}.</p>}
             {wholeDayOff && <p className="mb-2 rounded bg-red-50 border border-red-200 p-2 text-sm text-red-800">Dnes odpadá celý den{wholeDayOff.note ? `: ${wholeDayOff.note}` : ''}.</p>}
             {todaySlots.length === 0 ? <p className="text-sm text-slate-500">Dnes nemáte v rozvrhu žádnou hodinu.</p> : (
               <ul className="divide-y divide-slate-100">
