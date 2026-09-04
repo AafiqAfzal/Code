@@ -1,5 +1,13 @@
 # Změny
 
+## 2.1.0
+
+- Žáci: filtr podle štítků a pohlaví, barevné odlišení dívek a chlapců (pohlaví z importu), narozeniny v kartě a na přehledu, karta bez kontaktů
+- Hodnocení: nabídka skupin/tříd podle předmětu a rozvrhu, užší sloupce, zápis známek najetím myší a klávesou i na české klávesnici, poznámka žáka po najetí
+- Zápisy z hodin a docházka: nabídka skupin/tříd podle předmětu a rozvrhu
+- Třídy a skupiny: docházka a podklady na schůzky pro celou třídu, skupiny kolegů s vyučujícím (skryté v nabídkách), nadpis podle třídy
+- Skupiny ve stejné grafice v seznamu žáků
+
 ## 2.0.0
 
 - Rozvrh po týdnech: odpadlé hodiny a dny, suplování, kroužky, zápis hodiny z políčka, fajfka u zapsaných hodin
