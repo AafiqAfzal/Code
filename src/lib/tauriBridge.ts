@@ -47,11 +47,17 @@ async function checkForUpdates(silent = true): Promise<UpdateState> {
   return updateState
 }
 
+const log = (msg: string) => { invoke('log_line', { msg }).catch(() => {}) }
+
 export function installTauriBridge() {
   if (!isTauri()) return
+  window.addEventListener('error', (e) => log(`error: ${e.message} @ ${e.filename}:${e.lineno}`))
+  window.addEventListener('unhandledrejection', (e) => log(`unhandled: ${String((e.reason as Error)?.stack ?? e.reason)}`))
+  log('bridge installed')
   const denik: DenikDesktop = {
     isDesktop: true,
     autoBackup: async (json) => {
+      log('autoBackup start')
       await ensureBackupDir()
       const date = new Date().toISOString().slice(0, 10)
       const name = `pedagogicky-denik-${date}.json`
@@ -59,7 +65,9 @@ export function installTauriBridge() {
       // ponechat posledních 30 záloh
       const files = (await readDir(BACKUP_DIR, { baseDir: BaseDirectory.Document })).map((f) => f.name).filter((n): n is string => !!n && backupFileRe.test(n)).sort()
       for (const old of files.slice(0, Math.max(0, files.length - KEEP))) await remove(`${BACKUP_DIR}/${old}`, { baseDir: BaseDirectory.Document })
-      return await join(await documentDir(), BACKUP_DIR, name)
+      const full = await join(await documentDir(), BACKUP_DIR, name)
+      log(`autoBackup ok: ${full}`)
+      return full
     },
     saveBackupAs: async (json) => {
       await ensureBackupDir()
@@ -98,5 +106,5 @@ export function installTauriBridge() {
   // kontrola aktualizací po startu a každé 4 hodiny
   setTimeout(() => checkForUpdates(true), 4000)
   setInterval(() => checkForUpdates(true), 4 * 60 * 60 * 1000)
-  void invoke; void pending
+  void pending
 }

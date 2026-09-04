@@ -1,5 +1,12 @@
 # Změny
 
+## 3.0.0
+
+- Desktopová vrstva přepsaná z Electronu na Tauri: instalátor jen několik MB, používá WebView2 zabudovaný ve Windows
+- Při prvním spuštění nabídka obnovy dat ze zálohy předchozí verze (složka Dokumenty)
+- Podepsané automatické aktualizace (klíč jako tajemství repozitáře)
+- Zálohy, oznámení a aktualizace beze změny chování pro uživatele
+
 ## 2.1.0
 
 - Žáci: filtr podle štítků a pohlaví, barevné odlišení dívek a chlapců (pohlaví z importu), narozeniny v kartě a na přehledu, karta bez kontaktů
