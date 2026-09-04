@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { LayoutDashboard, CalendarDays, School, Users, UserRound, ClipboardList, BookOpenCheck, ListChecks, Clock, Settings as SettingsIcon, ExternalLink, Menu, CalendarCheck } from 'lucide-react'
+import { LayoutDashboard, CalendarDays, School, Users, UserRound, ClipboardList, BookOpenCheck, ListChecks, Clock, Settings as SettingsIcon, Menu, CalendarCheck } from 'lucide-react'
 import { useState } from 'react'
 import { useSettings } from './hooks'
 
@@ -56,10 +56,6 @@ export function Layout() {
               })}
             </div>
           ))}
-          <a href={settings?.skolaOnlineUrl || 'https://aplikace.skolaonline.cz'} target="_blank" rel="noreferrer"
-            className="flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm text-blue-100 hover:bg-blue-800 mt-3 border-t border-blue-800 pt-3">
-            <ExternalLink size={17} /> Škola online
-          </a>
         </nav>
         {settings?.teacherName && <div className="absolute bottom-0 w-full px-4 py-3 text-xs text-blue-300 border-t border-blue-800">{settings.teacherName}</div>}
       </aside>
