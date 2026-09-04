@@ -49,7 +49,7 @@ jobs:
           tagName: v${{ steps.v.outputs.version }}
           releaseName: Pedagogický deník ${{ steps.v.outputs.version }}
           releaseBody: |
-            **Instalace (Windows):** stáhněte `Pedagogicky-denik_${{ steps.v.outputs.version }}_x64-setup.exe` a spusťte. Nepotřebuje práva správce, vytvoří ikonu na ploše.
+            **Instalace (Windows):** stáhněte `Pedagogicky.denik_${{ steps.v.outputs.version }}_x64-setup.exe` a spusťte. Nepotřebuje práva správce, vytvoří ikonu na ploše.
 
             Nainstalovaná aplikace se na další verze aktualizuje sama (Nastavení → Aktualizace aplikace).
 

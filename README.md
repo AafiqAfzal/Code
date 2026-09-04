@@ -40,7 +40,7 @@ které je součástí Windows 10/11, takže instalátor má jen několik megabaj
 v profilu aplikace na daném počítači, automatická záloha se ukládá jednou denně do
 `Dokumenty\Pedagogický deník\zalohy` (posledních 30 záloh).
 
-1. Otevřete stránku **Releases** repozitáře a stáhněte `Pedagogicky-denik_<verze>_x64-setup.exe`
+1. Otevřete stránku **Releases** repozitáře a stáhněte `Pedagogicky.denik_<verze>_x64-setup.exe`
    (instalace bez práv správce).
 2. Windows může zobrazit varování SmartScreen, protože aplikace není podepsaná
    certifikátem: klikněte na *Další informace* → *Přesto spustit*.
