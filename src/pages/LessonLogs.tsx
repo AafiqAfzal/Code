@@ -92,7 +92,7 @@ export function LessonLogsPage() {
             <div className="space-y-3">
               <div className="grid grid-cols-4 gap-3">
                 <Field label="Datum"><input type="date" className="input" value={draft.date} onChange={(e) => setDraft({ ...draft, date: e.target.value })} /></Field>
-                <Field label="Hodina"><input type="number" min={0} max={10} className="input" value={draft.lessonNumber ?? ''} onChange={(e) => setDraft({ ...draft, lessonNumber: Number(e.target.value) || undefined })} /></Field>
+                <Field label="Hodina"><input type="number" min={1} max={9} className="input" value={draft.lessonNumber ?? ''} onChange={(e) => setDraft({ ...draft, lessonNumber: Number(e.target.value) || undefined })} /></Field>
                 <Field label="Předmět"><select className="input" value={draft.subjectId} onChange={(e) => setDraft({ ...draft, subjectId: Number(e.target.value) })}>{subjects.map((s) => <option key={s.id} value={s.id}>{s.abbreviation}</option>)}</select></Field>
                 <Field label="Skupina / třída">
                   <select className="input" value={draft.groupId ? `g${draft.groupId}` : draft.classId ? `c${draft.classId}` : ''} onChange={(e) => { const v = e.target.value; setDraft({ ...draft, groupId: v.startsWith('g') ? Number(v.slice(1)) : undefined, classId: v.startsWith('c') ? Number(v.slice(1)) : undefined, absentStudentIds: [] }) }}>

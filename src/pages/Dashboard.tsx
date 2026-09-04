@@ -6,7 +6,7 @@ import { db } from '../db/schema'
 import { loadDemoData } from '../db/seed'
 import { useClasses, useGroups, useSettings, useStudents, useSubjects } from '../components/hooks'
 import { Badge, EmptyState, PageHeader } from '../components/ui'
-import { EVENT_KINDS, LESSON_TIMES, fmtDate, todayISO } from '../lib/format'
+import { EVENT_KINDS, fmtDate, lessonRange, todayISO } from '../lib/format'
 import { collectReminders } from '../lib/reminders'
 
 export function Dashboard() {
@@ -85,7 +85,7 @@ export function Dashboard() {
               <ul className="divide-y divide-slate-100">
                 {todaySlots.map((s) => (
                   <li key={s.id} className="flex items-center gap-3 py-2 text-sm">
-                    <span className="w-16 text-slate-500">{s.lessonNumber}. h <span className="text-xs">({LESSON_TIMES[s.lessonNumber] ?? ''})</span></span>
+                    <span className="w-28 text-slate-500">{s.lessonNumber}. h <span className="text-xs">{lessonRange(s.lessonNumber)}</span></span>
                     <Badge className="bg-blue-100 text-blue-800">{subjectName(s.subjectId)}</Badge>
                     <span className="font-medium">{groupName(s.groupId) ?? className(s.classId) ?? ''}</span>
                     {s.room && <span className="text-slate-400">uč. {s.room}</span>}

@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { db, type TimetableSlot } from '../db/schema'
 import { useClasses, useGroups, useSubjects } from '../components/hooks'
 import { ConfirmButton, Field, Modal, PageHeader } from '../components/ui'
-import { LESSON_NUMBERS, LESSON_TIMES, WEEKDAYS } from '../lib/format'
+import { LESSON_NUMBERS, WEEKDAYS, lessonRange } from '../lib/format'
 import { importTimetableFile, readJsonFile, type TimetableFile } from '../db/seed'
 import { FileJson } from 'lucide-react'
 
@@ -33,7 +33,7 @@ export function TimetablePage() {
       <p className="mb-3 text-xs text-slate-500">Hodiny dělených skupin se ze souboru naváží na existující skupiny „sk. N“ dané třídy (z importu žáků); jinak na celou třídu, což lze později upravit kliknutím.</p>
       <div className="card overflow-x-auto">
         <table className="table text-center">
-          <thead><tr><th></th>{lessons.map((l) => <th key={l} className="text-center">{l}.<div className="font-normal text-[10px]">{LESSON_TIMES[l]}</div></th>)}</tr></thead>
+          <thead><tr><th></th>{lessons.map((l) => <th key={l} className="text-center whitespace-nowrap min-w-24">{l}. hodina<div className="font-normal normal-case text-[11px] text-slate-500">{lessonRange(l)}</div></th>)}</tr></thead>
           <tbody>
             {WEEKDAYS.map((name, i) => (
               <tr key={name}>
