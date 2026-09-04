@@ -45,6 +45,7 @@ export function SettingsPage() {
     }
   }
   const holidays = useLiveQuery(() => db.schoolHolidays.orderBy('from').toArray(), []) ?? []
+  const template = useLiveQuery(() => db.documents.where('kind').equals('epd-template').first(), [])
   const [hol, setHol] = useState({ name: 'Jarní prázdniny', from: '', to: '' })
   const counts = useLiveQuery(async () => ({ students: await db.students.count(), assessments: await db.assessments.count() }), [])
 
@@ -144,6 +145,28 @@ export function SettingsPage() {
           <button className="btn-primary btn-sm" disabled={!hol.name.trim() || !hol.from || !hol.to || hol.to < hol.from} onClick={async () => { await db.schoolHolidays.add({ name: hol.name.trim(), from: hol.from, to: hol.to }); setHol({ name: 'Jarní prázdniny', from: '', to: '' }); show('Prázdniny přidány.') }}>Přidat</button>
         </div>
       </section>
+
+      {settings && (
+        <section className="card card-body">
+          <h2 className="card-title mb-1">Evidence pracovní doby</h2>
+          <p className="text-xs text-slate-500 mb-3">Nahrajte školní šablonu výkazu (Excel). Zůstane jen v této aplikaci a vyplněný výkaz se do ní vepíše se zachováním vzhledu. Výchozí údaje níže se použijí při vyplňování z rozvrhu.</p>
+          <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
+            <label className="btn-secondary btn-sm">{template ? 'Nahradit šablonu' : 'Nahrát šablonu (XLSX)'}
+              <input type="file" accept=".xlsx" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; await db.documents.where('kind').equals('epd-template').delete(); await db.documents.add({ kind: 'epd-template', name: f.name, blob: f, uploadedAt: new Date().toISOString() }); show('Šablona uložena.'); e.target.value = '' }} />
+            </label>
+            {template ? <span className="text-green-700">✓ {template.name} ({Math.round(template.blob.size / 1024)} kB)</span> : <span className="text-slate-500">Šablona zatím není nahraná.</span>}
+            {template && <ConfirmButton className="btn-ghost btn-sm" onConfirm={() => db.documents.delete(template.id)}>Odebrat</ConfirmButton>}
+          </div>
+          <div className="grid gap-3 md:grid-cols-6">
+            <Field label="Pracovní zařazení"><input className="input" defaultValue={settings.epdPosition ?? ''} onBlur={(e) => upd({ epdPosition: e.target.value })} placeholder="učitel" /></Field>
+            <Field label="Osobní číslo"><input className="input" defaultValue={settings.epdPersonalNumber ?? ''} onBlur={(e) => upd({ epdPersonalNumber: e.target.value })} /></Field>
+            <Field label="Pracovní úvazek"><input className="input" defaultValue={settings.epdWorkload ?? ''} onBlur={(e) => upd({ epdWorkload: e.target.value })} placeholder="1,0" /></Field>
+            <Field label="Začátek pracovní doby"><input className="input" defaultValue={settings.epdStartTime ?? '7:30'} onBlur={(e) => upd({ epdStartTime: e.target.value })} placeholder="7:30" /></Field>
+            <Field label="Hodin denně"><input type="number" step="0.5" className="input" defaultValue={settings.epdDailyHours ?? 8} onBlur={(e) => upd({ epdDailyHours: Number(e.target.value) || 8 })} /></Field>
+            <Field label="Kód o prázdninách"><select className="input" value={settings.epdVacationCode ?? 'Sa'} onChange={(e) => upd({ epdVacationCode: e.target.value })}><option value="Sa">Sa – samostudium</option><option value="D">D – dovolená</option><option value="">nechat prázdné</option></select></Field>
+          </div>
+        </section>
+      )}
 
       <section className="card card-body">
         <h2 className="card-title mb-1">Zámek aplikace a připomínky</h2>

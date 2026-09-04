@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { LayoutDashboard, School, Users, UserRound, ClipboardList, BookOpenCheck, ListChecks, Clock, Settings as SettingsIcon, Menu, CalendarCheck } from 'lucide-react'
+import { LayoutDashboard, School, Users, UserRound, ClipboardList, BookOpenCheck, ListChecks, Clock, Settings as SettingsIcon, Menu, CalendarCheck, FileSpreadsheet } from 'lucide-react'
 import { useState } from 'react'
 import { useSettings } from './hooks'
 import { MiniCalendar } from './MiniCalendar'
@@ -22,6 +22,9 @@ const NAV: NavGroup[] = [
     { to: '/zapisy', label: 'Zápisy z hodin', icon: BookOpenCheck },
     { to: '/dochazka', label: 'Docházka', icon: CalendarCheck },
     { to: '/plany', label: 'Tematické plány', icon: ListChecks },
+  ] },
+  { title: 'Administrativa', items: [
+    { to: '/vykaz', label: 'Pracovní výkaz', icon: FileSpreadsheet },
   ] },
   { items: [
     { to: '/nastaveni', label: 'Nastavení', icon: SettingsIcon, also: ['/import'] },

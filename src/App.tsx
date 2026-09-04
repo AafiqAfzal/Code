@@ -22,6 +22,7 @@ import { SettingsPage } from './pages/Settings'
 import { AttendancePage } from './pages/Attendance'
 import { PrintReportPage } from './pages/PrintReport'
 import { SeatingPage } from './pages/Seating'
+import { WorkReportPage } from './pages/WorkReport'
 
 export default function App() {
   const [ready, setReady] = useState(false)
@@ -67,6 +68,7 @@ export default function App() {
           <Route path="dochazka" element={<AttendancePage />} />
           <Route path="tisk" element={<PrintReportPage />} />
           <Route path="zasedaci" element={<SeatingPage />} />
+          <Route path="vykaz" element={<WorkReportPage />} />
           <Route path="import" element={<ImportPage />} />
           <Route path="nastaveni" element={<SettingsPage />} />
         </Route>

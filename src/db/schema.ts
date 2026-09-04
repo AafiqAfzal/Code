@@ -20,6 +20,14 @@ export interface Settings {
   lockAfterMinutes?: number
   /** Připomínky událostí (den předem a v den konání). */
   remindersEnabled?: boolean
+  /** Evidence pracovní doby – výchozí údaje */
+  epdPosition?: string
+  epdPersonalNumber?: string
+  epdWorkload?: string
+  epdStartTime?: string
+  epdDailyHours?: number
+  /** Kód pro dny školních prázdnin (Sa / D / prázdné) */
+  epdVacationCode?: string
 }
 
 export interface Subject {
@@ -196,6 +204,42 @@ export interface SeatingPlan {
   updatedAt: string
 }
 
+/** Uložený soubor, např. šablona evidence pracovní doby (zůstává jen v aplikaci). */
+export interface StoredDocument {
+  id: number
+  kind: 'epd-template'
+  name: string
+  blob: Blob
+  uploadedAt: string
+}
+
+/** Jeden den v evidenci pracovní doby. */
+export interface WorkDay {
+  start?: string // "7:30"
+  direct?: number // přímá ped. práce (hodiny)
+  related?: number // práce související
+  extra?: number // přespočetné hodiny (suplování)
+  end?: string
+  code?: string // D, Sa, Sv, L, OČR, DVPP
+  codeNote?: string // od - do
+  overtime?: number // přesčas
+  activityHours?: number // mimoškolní aktivity – počet
+  activityName?: string // mimoškolní aktivity – název
+  webinar?: string
+}
+
+/** Evidence pracovní doby za měsíc. */
+export interface WorkMonth {
+  id: number
+  month: string // "2026-09"
+  name: string
+  position: string
+  personalNumber: string
+  workload: string
+  days: Record<number, WorkDay>
+  updatedAt: string
+}
+
 /** Školní prázdniny (celostátní termíny MŠMT + jarní prázdniny podle okresu). */
 export interface SchoolHoliday {
   id: number
@@ -258,6 +302,8 @@ export class DiaryDB extends Dexie {
   seatingPlans!: EntityTable<SeatingPlan, 'id'>
   timetableChanges!: EntityTable<TimetableChange, 'id'>
   schoolHolidays!: EntityTable<SchoolHoliday, 'id'>
+  documents!: EntityTable<StoredDocument, 'id'>
+  workMonths!: EntityTable<WorkMonth, 'id'>
 
   constructor() {
     super('pedagogicky-denik')
@@ -287,6 +333,10 @@ export class DiaryDB extends Dexie {
     this.version(4).stores({
       schoolHolidays: '++id, from, to',
     })
+    this.version(5).stores({
+      documents: '++id, kind',
+      workMonths: '++id, &month',
+    })
   }
 }
 
@@ -295,6 +345,6 @@ export const db = new DiaryDB()
 export const ALL_TABLES = [
   'settings', 'subjects', 'classes', 'groups', 'students', 'studentNotes',
   'gradeCategories', 'gradingScales', 'assessments', 'termEvaluations',
-  'events', 'plans', 'planItems', 'lessonLogs', 'timetable', 'seatingPlans', 'timetableChanges', 'schoolHolidays',
+  'events', 'plans', 'planItems', 'lessonLogs', 'timetable', 'seatingPlans', 'timetableChanges', 'schoolHolidays', 'documents', 'workMonths',
 ] as const
 export type TableName = (typeof ALL_TABLES)[number]
