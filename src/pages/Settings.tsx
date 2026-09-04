@@ -46,6 +46,14 @@ export function SettingsPage() {
   }
   const holidays = useLiveQuery(() => db.schoolHolidays.orderBy('from').toArray(), []) ?? []
   const template = useLiveQuery(() => db.documents.where('kind').equals('epd-template').first(), [])
+  const [docBackups, setDocBackups] = useState<string[]>([])
+  const [docBackup, setDocBackup] = useState('')
+  useEffect(() => { window.denik?.listBackups?.().then((l) => { setDocBackups(l); setDocBackup(l[0] ?? '') }).catch(() => {}) }, [])
+  const restoreFromDocuments = async () => {
+    if (!window.denik?.readBackup || !docBackup) return
+    if (!confirm(`Obnovit data ze zálohy ${docBackup}? Současná data v aplikaci se nahradí.`)) return
+    try { const text = await window.denik.readBackup(docBackup); await importBackup(new File([text], docBackup, { type: 'application/json' }), 'replace'); show('Data obnovena.'); setTimeout(() => location.reload(), 800) } catch (err) { alert(`Obnova selhala: ${(err as Error).message}`) }
+  }
   const [hol, setHol] = useState({ name: 'Jarní prázdniny', from: '', to: '' })
   const counts = useLiveQuery(async () => ({ students: await db.students.count(), assessments: await db.assessments.count() }), [])
 
@@ -204,6 +212,14 @@ export function SettingsPage() {
               <button className="btn-secondary btn-sm" onClick={async () => { const f = await runDailyAutoBackupForce(); show(f ? `Záloha uložena: ${f}` : 'Záloha selhala.') }}>Zálohovat teď</button>
               <button className="btn-secondary btn-sm" onClick={() => window.denik?.openBackupDir()}>Otevřít složku záloh</button>
             </div>
+          </div>
+        )}
+        {docBackups.length > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded border border-slate-200 bg-slate-50 p-3 text-sm">
+            <span className="font-medium">Zálohy ve složce Dokumenty:</span>
+            <select className="input w-auto" value={docBackup} onChange={(e) => setDocBackup(e.target.value)}>{docBackups.map((b) => <option key={b} value={b}>{b}</option>)}</select>
+            <button className="btn-secondary btn-sm" onClick={restoreFromDocuments}>Obnovit z této zálohy</button>
+            <span className="text-xs text-slate-500">Hodí se po přechodu na novou verzi nebo po smazání dat.</span>
           </div>
         )}
         <div className="flex flex-wrap gap-2 items-center">
