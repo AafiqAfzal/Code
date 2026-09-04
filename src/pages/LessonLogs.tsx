@@ -29,10 +29,10 @@ export function LessonLogsPage() {
   // Otevření z přehledu ("Zapsat hodinu")
   useEffect(() => {
     const key = params.toString()
-    if (!params.get('subjectId') || prefilledFor.current === key || planItems.length === 0 && plans.length > 0) return
+    if (!params.get('lesson') || prefilledFor.current === key || planItems.length === 0 && plans.length > 0) return
     if (plans.length === 0 && planItems.length === 0) return
     prefilledFor.current = key
-    const base = newDraft({ subjectId: Number(params.get('subjectId')), groupId: Number(params.get('groupId')) || undefined, classId: Number(params.get('classId')) || undefined, lessonNumber: Number(params.get('lesson')) || undefined })
+    const base = newDraft({ subjectId: Number(params.get('subjectId')) || settings?.defaultSubjectId || subjects[0]?.id || 0, groupId: Number(params.get('groupId')) || undefined, classId: Number(params.get('classId')) || undefined, lessonNumber: Number(params.get('lesson')) || undefined })
     // předvyplnit další neodškrtnuté téma z tematického plánu
     const next = relevantPlanItems(base).find((i) => !i.done)
     setDraft(next ? { ...base, planItemId: next.id, topic: next.text } : base)

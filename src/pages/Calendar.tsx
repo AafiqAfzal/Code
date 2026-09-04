@@ -6,6 +6,7 @@ import { db, type CalendarEvent, type EventKind } from '../db/schema'
 import { useClasses, useGroups, useSubjects } from '../components/hooks'
 import { Badge, ConfirmButton, Field, Modal, PageHeader } from '../components/ui'
 import { EVENT_KINDS, WEEKDAYS_SHORT, fmtDate, todayISO } from '../lib/format'
+import { activeLessons, scheduleForDate } from '../lib/schedule'
 
 type Draft = Omit<CalendarEvent, 'id'> & { id?: number }
 const emptyDraft = (date: string): Draft => ({ title: '', kind: 'test', date, done: false })
@@ -21,6 +22,7 @@ export function CalendarPage() {
   const to = format(endOfWeek(endOfMonth(month), { weekStartsOn: 1 }), 'yyyy-MM-dd')
   const events = useLiveQuery(() => db.events.where('date').between(from, to, true, true).sortBy('date'), [from, to]) ?? []
   const slots = useLiveQuery(() => db.timetable.toArray(), []) ?? []
+  const changes = useLiveQuery(() => db.timetableChanges.where('date').between(from, to, true, true).toArray(), [from, to]) ?? []
   const days = eachDayOfInterval({ start: startOfWeek(month, { weekStartsOn: 1 }), end: endOfWeek(endOfMonth(month), { weekStartsOn: 1 }) })
   const today = todayISO()
   const visible = filter ? events.filter((e) => e.kind === filter) : events
@@ -64,14 +66,19 @@ export function CalendarPage() {
               const iso = format(d, 'yyyy-MM-dd')
               const dayEvents = visible.filter((e) => e.date === iso)
               const wd = getISODay(d)
-              const lessons = slots.filter((s) => s.weekday === wd).length
+              const sched = scheduleForDate(iso, slots, changes)
+              const lessons = activeLessons(sched).length
+              const cancelled = sched.filter((e) => e.status === 'cancelled').length
+              const subst = sched.filter((e) => e.status === 'substitution').length
+              const dayOff = changes.find((c) => c.date === iso && c.kind === 'odpada' && c.lessonNumber == null)
               return (
                 <div key={iso} className={`min-h-24 border-b border-r border-slate-100 p-1 text-xs ${isSameMonth(d, month) ? '' : 'bg-slate-50 text-slate-400'} ${iso === today ? 'bg-blue-50' : ''}`}
                   onDoubleClick={() => setDraft(emptyDraft(iso))}>
                   <div className="flex justify-between">
                     <span className={`font-semibold ${iso === today ? 'text-blue-700' : ''}`}>{d.getDate()}</span>
-                    {lessons > 0 && wd <= 5 && <span className="text-slate-400" title="Počet hodin v rozvrhu">{lessons} h</span>}
+                    {wd <= 5 && (lessons > 0 || cancelled > 0) && <span className="text-slate-400" title={`${lessons} hodin${cancelled ? `, ${cancelled} odpadá` : ''}${subst ? `, ${subst} suplování` : ''}`}>{lessons} h{cancelled ? <span className="text-red-500"> −{cancelled}</span> : ''}{subst ? <span className="text-amber-600"> +{subst}</span> : ''}</span>}
                   </div>
+                  {dayOff && <div className="mt-0.5 truncate rounded bg-red-100 px-1 py-0.5 text-red-800" title={dayOff.note}>odpadá: {dayOff.note || 'celý den'}</div>}
                   {dayEvents.map((e) => (
                     <button key={e.id} onClick={() => setDraft({ ...e })}
                       className={`mt-0.5 block w-full truncate rounded px-1 py-0.5 text-left ${EVENT_KINDS[e.kind].color} ${e.done ? 'line-through opacity-60' : ''}`} title={e.title}>

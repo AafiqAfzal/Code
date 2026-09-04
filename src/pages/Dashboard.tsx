@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
-import { addDays, getISODay } from 'date-fns'
+import { addDays } from 'date-fns'
 import { CalendarDays, ClipboardList, ListChecks, BookOpenCheck, Sparkles, BellRing, Check } from 'lucide-react'
 import { db } from '../db/schema'
 import { loadDemoData } from '../db/seed'
@@ -8,6 +8,7 @@ import { useClasses, useGroups, useSettings, useStudents, useSubjects } from '..
 import { Badge, EmptyState, PageHeader } from '../components/ui'
 import { EVENT_KINDS, fmtDate, lessonRange, todayISO } from '../lib/format'
 import { collectReminders } from '../lib/reminders'
+import { scheduleForDate } from '../lib/schedule'
 
 export function Dashboard() {
   const settings = useSettings()
@@ -16,8 +17,10 @@ export function Dashboard() {
   const classes = useClasses()
   const students = useStudents()
   const today = todayISO()
-  const weekday = getISODay(new Date())
-  const todaySlots = useLiveQuery(() => db.timetable.where('weekday').equals(weekday).sortBy('lessonNumber'), [weekday]) ?? []
+  const slots = useLiveQuery(() => db.timetable.toArray(), []) ?? []
+  const changes = useLiveQuery(() => db.timetableChanges.where('date').equals(today).toArray(), [today]) ?? []
+  const todaySlots = scheduleForDate(today, slots, changes)
+  const wholeDayOff = changes.find((c) => c.kind === 'odpada' && c.lessonNumber == null)
   const upcoming = useLiveQuery(() => db.events.where('date').between(today, addDays(new Date(), 14).toISOString().slice(0, 10), true, true).sortBy('date'), [today]) ?? []
   const overdue = useLiveQuery(() => db.events.where('date').below(today).filter((e) => !e.done && e.kind === 'ukol').toArray(), [today]) ?? []
   const recentLogs = useLiveQuery(() => db.lessonLogs.orderBy('date').reverse().limit(5).toArray(), []) ?? []
@@ -32,6 +35,7 @@ export function Dashboard() {
   const groupName = (id?: number) => groups.find((g) => g.id === id)?.name
   const className = (id?: number) => classes.find((c) => c.id === id)?.name
   const subjectName = (id?: number) => subjects.find((s) => s.id === id)?.abbreviation
+  const subjectIdOf = (e: { subjectId?: number }) => e.subjectId ?? settings?.defaultSubjectId ?? subjects[0]?.id ?? ''
   const studentName = (id: number) => { const s = students.find((x) => x.id === id); return s ? `${s.lastName} ${s.firstName}` : '' }
   const isEmpty = classes.length === 0 && students.length === 0
 
@@ -81,15 +85,18 @@ export function Dashboard() {
             <Link to="/rozvrh" className="text-xs text-blue-700 hover:underline">Rozvrh</Link>
           </div>
           <div className="card-body">
+            {wholeDayOff && <p className="mb-2 rounded bg-red-50 border border-red-200 p-2 text-sm text-red-800">Dnes odpadá celý den{wholeDayOff.note ? `: ${wholeDayOff.note}` : ''}.</p>}
             {todaySlots.length === 0 ? <p className="text-sm text-slate-500">Dnes nemáte v rozvrhu žádnou hodinu.</p> : (
               <ul className="divide-y divide-slate-100">
-                {todaySlots.map((s) => (
-                  <li key={s.id} className="flex items-center gap-3 py-2 text-sm">
+                {todaySlots.map((s, i) => (
+                  <li key={i} className={`flex items-center gap-3 py-2 text-sm ${s.status === 'cancelled' ? 'opacity-60' : ''}`}>
                     <span className="w-28 text-slate-500">{s.lessonNumber}. h <span className="text-xs">{lessonRange(s.lessonNumber)}</span></span>
-                    <Badge className="bg-blue-100 text-blue-800">{subjectName(s.subjectId)}</Badge>
-                    <span className="font-medium">{groupName(s.groupId) ?? className(s.classId) ?? ''}</span>
+                    <Badge className={s.kind === 'krouzek' ? 'bg-purple-100 text-purple-800' : s.status === 'substitution' ? 'bg-amber-100 text-amber-900' : 'bg-blue-100 text-blue-800'}>{s.kind === 'krouzek' ? 'Kroužek' : s.status === 'substitution' ? `Supl. ${subjectName(s.subjectId) ?? ''}` : subjectName(s.subjectId)}</Badge>
+                    <span className={`font-medium ${s.status === 'cancelled' ? 'line-through' : ''}`}>{s.kind === 'krouzek' ? s.title : groupName(s.groupId) ?? className(s.classId) ?? s.title ?? ''}</span>
                     {s.room && <span className="text-slate-400">uč. {s.room}</span>}
-                    {loggedSlot(s) ? <span className="ml-auto inline-flex items-center gap-1 text-xs text-green-700" title={loggedSlot(s)!.topic}><Check size={14} /> zapsáno</span> : <Link to={`/zapisy?groupId=${s.groupId ?? ''}&classId=${s.classId ?? ''}&subjectId=${s.subjectId}&lesson=${s.lessonNumber}`} className="ml-auto btn-primary btn-sm">Zapsat hodinu</Link>}
+                    {s.status === 'cancelled' && <span className="text-xs text-red-700">odpadá{s.reason ? `: ${s.reason}` : ''}</span>}
+                    {s.status === 'substitution' && s.change?.note && <span className="text-xs text-amber-700">{s.change.note}</span>}
+                    {s.status !== 'cancelled' && (loggedSlot(s) ? <span className="ml-auto inline-flex items-center gap-1 text-xs text-green-700" title={loggedSlot(s)!.topic}><Check size={14} /> zapsáno</span> : <Link to={`/zapisy?groupId=${s.groupId ?? ''}&classId=${s.classId ?? ''}&subjectId=${subjectIdOf(s)}&lesson=${s.lessonNumber}`} className="ml-auto btn-primary btn-sm">Zapsat hodinu</Link>)}
                   </li>
                 ))}
               </ul>

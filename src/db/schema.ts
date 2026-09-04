@@ -194,15 +194,39 @@ export interface SeatingPlan {
   updatedAt: string
 }
 
-/** Rozvrh hodin učitele. */
+/** Pravidelná položka rozvrhu (každý týden). */
+export type SlotKind = 'hodina' | 'krouzek'
 export interface TimetableSlot {
   id: number
   weekday: number // 1 = pondělí … 5 = pátek
   lessonNumber: number
-  subjectId: number
+  subjectId?: number
   groupId?: number
   classId?: number
   room?: string
+  /** hodina (výchozí) nebo kroužek */
+  kind?: SlotKind
+  /** Vlastní název, např. „Konverzace v Aj“ (u kroužku) */
+  title?: string
+}
+
+/**
+ * Jednorázová změna rozvrhu v konkrétní den: odpadlá hodina / celý den
+ * (projektový den, nepřítomnost, třída pryč) nebo suplování navíc.
+ */
+export type ChangeKind = 'odpada' | 'suplovani'
+export interface TimetableChange {
+  id: number
+  date: string
+  kind: ChangeKind
+  /** u „odpadá“: konkrétní hodina, nebo undefined = celý den */
+  lessonNumber?: number
+  subjectId?: number
+  groupId?: number
+  classId?: number
+  room?: string
+  title?: string
+  note?: string
 }
 
 export class DiaryDB extends Dexie {
@@ -222,6 +246,7 @@ export class DiaryDB extends Dexie {
   lessonLogs!: EntityTable<LessonLog, 'id'>
   timetable!: EntityTable<TimetableSlot, 'id'>
   seatingPlans!: EntityTable<SeatingPlan, 'id'>
+  timetableChanges!: EntityTable<TimetableChange, 'id'>
 
   constructor() {
     super('pedagogicky-denik')
@@ -245,6 +270,9 @@ export class DiaryDB extends Dexie {
     this.version(2).stores({
       seatingPlans: '++id, groupId, classId',
     })
+    this.version(3).stores({
+      timetableChanges: '++id, date, kind',
+    })
   }
 }
 
@@ -253,6 +281,6 @@ export const db = new DiaryDB()
 export const ALL_TABLES = [
   'settings', 'subjects', 'classes', 'groups', 'students', 'studentNotes',
   'gradeCategories', 'gradingScales', 'assessments', 'termEvaluations',
-  'events', 'plans', 'planItems', 'lessonLogs', 'timetable', 'seatingPlans',
+  'events', 'plans', 'planItems', 'lessonLogs', 'timetable', 'seatingPlans', 'timetableChanges',
 ] as const
 export type TableName = (typeof ALL_TABLES)[number]

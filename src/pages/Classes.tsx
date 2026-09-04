@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Plus, Scissors, Users } from 'lucide-react'
+import { Plus, Scissors, Users, Sparkles } from 'lucide-react'
 import { db, type Group, type SchoolClass } from '../db/schema'
 import { useClasses, useGroups, useStudents, useSubjects } from '../components/hooks'
 import { Badge, ColorDot, ConfirmButton, EmptyState, Field, Modal, PageHeader } from '../components/ui'
@@ -22,7 +22,9 @@ export function ClassesPage() {
 
   const classStudents = students.filter((s) => s.classId === selectedClassId)
   const gradeGroups = selectedClass ? groups.filter((g) => g.gradeLevel === selectedClass.gradeLevel) : []
-  const gradeStudents = selectedClass ? students.filter((s) => classes.find((c) => c.id === s.classId)?.gradeLevel === selectedClass.gradeLevel) : []
+  const crossGroups = groups.filter((g) => !g.gradeLevel)
+  const draftStudents = groupDraft ? (groupDraft.gradeLevel ? students.filter((s) => classes.find((c) => c.id === s.classId)?.gradeLevel === groupDraft.gradeLevel) : students) : []
+  const draftClasses = groupDraft ? (groupDraft.gradeLevel ? classes.filter((c) => c.gradeLevel === groupDraft.gradeLevel) : classes) : []
 
   const saveClass = async () => {
     if (!classDraft?.name?.trim()) return
@@ -50,7 +52,7 @@ export function ClassesPage() {
       { name: `${abbr} ${selectedClass.name} – 2. skupina`.trim(), subjectId, gradeLevel: selectedClass.gradeLevel, studentIds: sorted.slice(half).map((s) => s.id), color: COLORS[1] },
     ])
   }
-  const groupsOfStudent = (id: number) => gradeGroups.filter((g) => g.studentIds.includes(id))
+  const groupsOfStudent = (id: number) => [...gradeGroups, ...crossGroups].filter((g) => g.studentIds.includes(id))
   const toggleMember = (id: number) => {
     if (!groupDraft) return
     const has = groupDraft.studentIds.includes(id)
@@ -60,8 +62,34 @@ export function ClassesPage() {
   return (
     <div>
       <PageHeader title="Třídy a skupiny" subtitle="Kmenové třídy a dělené skupiny (např. angličtina na půl)" actions={
-        <button className="btn-primary" onClick={() => setClassDraft({ name: '', gradeLevel: 0 })}><Plus size={16} /> Nová třída</button>
+        <>
+          <button className="btn-secondary" onClick={() => setGroupDraft({ name: 'Kroužek ', gradeLevel: 0, subjectId: subjects[0]?.id, studentIds: [], color: '#7c3aed' })}><Sparkles size={16} /> Nový kroužek (napříč ročníky)</button>
+          <button className="btn-primary" onClick={() => setClassDraft({ name: '', gradeLevel: 0 })}><Plus size={16} /> Nová třída</button>
+        </>
       } />
+      {crossGroups.length > 0 && (
+        <div className="mb-4">
+          <h3 className="mb-2 font-semibold text-slate-700 flex items-center gap-2"><Sparkles size={16} /> Kroužky a skupiny napříč ročníky</h3>
+          <div className="grid gap-3 md:grid-cols-2">
+            {crossGroups.map((g) => {
+              const members = g.studentIds.map((id) => students.find((s) => s.id === id)).filter(Boolean).sort((a, b) => byName(a!, b!))
+              return (
+                <div key={g.id} className="card">
+                  <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200" style={{ borderTop: `3px solid ${g.color ?? '#7c3aed'}` }}>
+                    <div><div className="font-semibold text-sm">{g.name}</div><div className="text-xs text-slate-500">{subjects.find((s) => s.id === g.subjectId)?.name ?? ''} · {members.length} žáků</div></div>
+                    <div className="flex gap-1">
+                      <Link to={`/dochazka?groupId=${g.id}`} className="btn-secondary btn-sm">Docházka</Link>
+                      <button className="btn-secondary btn-sm" onClick={() => setGroupDraft({ ...g })}>Upravit</button>
+                      <ConfirmButton onConfirm={() => db.groups.delete(g.id)}>×</ConfirmButton>
+                    </div>
+                  </div>
+                  <div className="card-body text-sm columns-2 gap-4">{members.map((s) => <div key={s!.id} className="truncate">{fullName(s!)} <span className="text-slate-400 text-xs">{classes.find((c) => c.id === s!.classId)?.name}</span></div>)}</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
       {classes.length === 0 && <EmptyState>Zatím žádná třída. Přidejte ji ručně nebo <Link className="text-blue-700 underline" to="/import">naimportujte z Excelu</Link>.</EmptyState>}
       <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
         <div className="card">
@@ -155,7 +183,7 @@ export function ClassesPage() {
         )}
       </Modal>
 
-      <Modal open={!!groupDraft} onClose={() => setGroupDraft(null)} title={groupDraft?.id ? 'Upravit skupinu' : 'Nová skupina'} wide>
+      <Modal open={!!groupDraft} onClose={() => setGroupDraft(null)} title={groupDraft?.id ? 'Upravit skupinu' : groupDraft?.gradeLevel ? 'Nová skupina' : 'Nový kroužek / skupina napříč ročníky'} wide>
         {groupDraft && (
           <div className="space-y-3">
             <div className="grid grid-cols-[1fr_180px_120px] gap-3">
@@ -170,18 +198,18 @@ export function ClassesPage() {
               </Field>
             </div>
             <div>
-              <div className="label">Členové ({groupDraft.studentIds.length}) – žáci {groupDraft.gradeLevel}. ročníku</div>
+              <div className="label">Členové ({groupDraft.studentIds.length}){groupDraft.gradeLevel ? ` – žáci ${groupDraft.gradeLevel}. ročníku` : ' – žáci ze všech tříd'}</div>
               <div className="grid gap-x-4 sm:grid-cols-2 md:grid-cols-3 max-h-80 overflow-y-auto border border-slate-200 rounded p-2">
-                {classes.filter((c) => c.gradeLevel === groupDraft.gradeLevel).map((c) => (
+                {draftClasses.map((c) => (
                   <div key={c.id}>
                     <div className="text-xs font-semibold text-slate-500 mt-1 flex items-center justify-between">{c.name}
                       <button className="text-blue-700 hover:underline font-normal" onClick={() => {
-                        const ids = gradeStudents.filter((s) => s.classId === c.id).map((s) => s.id)
+                        const ids = draftStudents.filter((s) => s.classId === c.id).map((s) => s.id)
                         const all = ids.every((id) => groupDraft.studentIds.includes(id))
                         setGroupDraft({ ...groupDraft, studentIds: all ? groupDraft.studentIds.filter((id) => !ids.includes(id)) : Array.from(new Set([...groupDraft.studentIds, ...ids])) })
                       }}>vše</button>
                     </div>
-                    {gradeStudents.filter((s) => s.classId === c.id).map((s) => (
+                    {draftStudents.filter((s) => s.classId === c.id).map((s) => (
                       <label key={s.id} className="flex items-center gap-2 text-sm py-0.5">
                         <input type="checkbox" checked={groupDraft.studentIds.includes(s.id)} onChange={() => toggleMember(s.id)} /> {fullName(s)}
                       </label>
