@@ -22,6 +22,9 @@ export function ClassesPage() {
 
   const classStudents = students.filter((s) => s.classId === selectedClassId)
   const gradeGroups = selectedClass ? groups.filter((g) => g.gradeLevel === selectedClass.gradeLevel) : []
+  // Je-li v ročníku jediná třída, mluvíme o třídě, ne o ročníku
+  const gradeClasses = selectedClass ? classes.filter((c) => c.gradeLevel === selectedClass.gradeLevel) : []
+  const scopeLabel = selectedClass ? (gradeClasses.length <= 1 ? `ve třídě ${selectedClass.name}` : `v ${selectedClass.gradeLevel}. ročníku`) : ''
   const crossGroups = groups.filter((g) => !g.gradeLevel)
   const draftStudents = groupDraft ? (groupDraft.gradeLevel ? students.filter((s) => classes.find((c) => c.id === s.classId)?.gradeLevel === groupDraft.gradeLevel) : students) : []
   const draftClasses = groupDraft ? (groupDraft.gradeLevel ? classes.filter((c) => c.gradeLevel === groupDraft.gradeLevel) : classes) : []
@@ -141,7 +144,7 @@ export function ClassesPage() {
             </div>
 
             <div>
-              <h3 className="mb-2 font-semibold text-slate-700 flex items-center gap-2"><Users size={16} /> Skupiny v {selectedClass.gradeLevel}. ročníku</h3>
+              <h3 className="mb-2 font-semibold text-slate-700 flex items-center gap-2"><Users size={16} /> Skupiny {scopeLabel}</h3>
               {gradeGroups.length === 0 && <EmptyState>Žádné skupiny. Použijte „Rozdělit na poloviny“ nebo vytvořte skupinu ručně.</EmptyState>}
               <div className="grid gap-3 md:grid-cols-2">
                 {gradeGroups.map((g) => {
@@ -202,7 +205,7 @@ export function ClassesPage() {
               </Field>
             </div>
             <div>
-              <div className="label">Členové ({groupDraft.studentIds.length}){groupDraft.gradeLevel ? ` – žáci ${groupDraft.gradeLevel}. ročníku` : ' – žáci ze všech tříd'}</div>
+              <div className="label">Členové ({groupDraft.studentIds.length}){groupDraft.gradeLevel ? (draftClasses.length <= 1 ? ` – žáci třídy ${draftClasses[0]?.name ?? ''}` : ` – žáci ${groupDraft.gradeLevel}. ročníku`) : ' – žáci ze všech tříd'}</div>
               <div className="grid gap-x-4 sm:grid-cols-2 md:grid-cols-3 max-h-80 overflow-y-auto border border-slate-200 rounded p-2">
                 {draftClasses.map((c) => (
                   <div key={c.id}>
