@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { db, type LessonLog } from '../db/schema'
-import { useClasses, useGroups, useMyGroups, useSettings, useStudents, useSubjects } from '../components/hooks'
+import { useClasses, useGroups, useMyGroups, useSettings, useStudents, useSubjects, useTeachingUnits } from '../components/hooks'
 import { Badge, ConfirmButton, Field, Modal, PageHeader } from '../components/ui'
 import { fmtDate, fullName, todayISO } from '../lib/format'
 
@@ -23,9 +23,16 @@ export function LessonLogsPage() {
   const planItems = useLiveQuery(() => db.planItems.orderBy('order').toArray(), []) ?? []
   const [draft, setDraft] = useState<Draft | null>(null)
   const prefilledFor = useRef('')
+  const units = useTeachingUnits(draft?.subjectId)
+  useEffect(() => {
+    if (!draft || draft.groupId || draft.classId) return
+    const first = units.groups[0] ? { groupId: units.groups[0].id } : units.classes[0] ? { classId: units.classes[0].id } : null
+    if (first) setDraft({ ...draft, ...first })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft?.subjectId, units.groups.length, units.classes.length])
 
   const newDraft = (init: Partial<Draft> = {}): Draft => ({
-    date: todayISO(), subjectId: settings?.defaultSubjectId ?? subjects[0]?.id ?? 0, groupId: myGroups[0]?.id, topic: '', absentStudentIds: [], ...init,
+    date: todayISO(), subjectId: settings?.defaultSubjectId ?? subjects[0]?.id ?? 0, topic: '', absentStudentIds: [], ...init,
   })
   // Otevření z přehledu ("Zapsat hodinu")
   useEffect(() => {
@@ -94,12 +101,14 @@ export function LessonLogsPage() {
               <div className="grid grid-cols-4 gap-3">
                 <Field label="Datum"><input type="date" className="input" value={draft.date} onChange={(e) => setDraft({ ...draft, date: e.target.value })} /></Field>
                 <Field label="Hodina"><input type="number" min={1} max={8} className="input" value={draft.lessonNumber ?? ''} onChange={(e) => setDraft({ ...draft, lessonNumber: Number(e.target.value) || undefined })} /></Field>
-                <Field label="Předmět"><select className="input" value={draft.subjectId} onChange={(e) => setDraft({ ...draft, subjectId: Number(e.target.value) })}>{subjects.map((s) => <option key={s.id} value={s.id}>{s.abbreviation}</option>)}</select></Field>
+                <Field label="Předmět"><select className="input" value={draft.subjectId} onChange={(e) => setDraft({ ...draft, subjectId: Number(e.target.value), groupId: undefined, classId: undefined, absentStudentIds: [] })}>{subjects.map((s) => <option key={s.id} value={s.id}>{s.abbreviation}</option>)}</select></Field>
                 <Field label="Skupina / třída">
                   <select className="input" value={draft.groupId ? `g${draft.groupId}` : draft.classId ? `c${draft.classId}` : ''} onChange={(e) => { const v = e.target.value; setDraft({ ...draft, groupId: v.startsWith('g') ? Number(v.slice(1)) : undefined, classId: v.startsWith('c') ? Number(v.slice(1)) : undefined, absentStudentIds: [] }) }}>
                     <option value="">—</option>
-                    <optgroup label="Skupiny">{myGroups.map((g) => <option key={g.id} value={`g${g.id}`}>{g.name}</option>)}</optgroup>
-                    <optgroup label="Třídy">{classes.map((c) => <option key={c.id} value={`c${c.id}`}>{c.name}</option>)}</optgroup>
+                    {units.groups.length > 0 && <optgroup label="Skupiny">{units.groups.map((g) => <option key={g.id} value={`g${g.id}`}>{g.name}</option>)}</optgroup>}
+                    {units.classes.length > 0 && <optgroup label="Třídy">{units.classes.map((c) => <option key={c.id} value={`c${c.id}`}>{c.name}</option>)}</optgroup>}
+                    {draft.groupId && !units.groups.some((g) => g.id === draft.groupId) && <option value={`g${draft.groupId}`}>{groups.find((g) => g.id === draft.groupId)?.name}</option>}
+                    {draft.classId && !units.classes.some((c) => c.id === draft.classId) && <option value={`c${draft.classId}`}>{classes.find((c) => c.id === draft.classId)?.name}</option>}
                   </select>
                 </Field>
               </div>

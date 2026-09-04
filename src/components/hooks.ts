@@ -14,6 +14,20 @@ export function useClasses() {
 export function useGroups() {
   return useLiveQuery(() => db.groups.orderBy('name').toArray(), []) ?? []
 }
+/**
+ * Co učím v daném předmětu: moje skupiny předmětu + třídy, které v něm podle
+ * rozvrhu učím vcelku. Bez rozvrhu se nabídnou všechny třídy (pokud nejsou skupiny).
+ */
+export function useTeachingUnits(subjectId?: number) {
+  const myGroups = useMyGroups()
+  const classes = useClasses()
+  const slots = useLiveQuery(() => db.timetable.toArray(), []) ?? []
+  const groups = myGroups.filter((g) => !g.subjectId || g.subjectId === subjectId)
+  const taught = new Set(slots.filter((s) => s.subjectId === subjectId && s.classId && !s.groupId).map((s) => s.classId))
+  const units = taught.size ? classes.filter((c) => taught.has(c.id)) : groups.length ? [] : classes
+  return { groups, classes: units }
+}
+
 /** Jen skupiny, které učím já (bez skupin kolegů). */
 export function useMyGroups() {
   return useGroups().filter((g) => g.mine !== false)

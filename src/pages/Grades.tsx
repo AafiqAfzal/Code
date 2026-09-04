@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Download, Plus, Shuffle, Info } from 'lucide-react'
 import { db, type Assessment } from '../db/schema'
-import { useCategories, useClasses, useGroups, useMyGroups, useScale, useSettings, useStudents, useSubjects } from '../components/hooks'
+import { useCategories, useClasses, useGroups, useScale, useSettings, useStudents, useSubjects, useTeachingUnits } from '../components/hooks'
 import { ConfirmButton, Field, Modal, PageHeader, Toast, useToast } from '../components/ui'
 import { fmtDate, fullName, genderClass, todayISO } from '../lib/format'
 import { GRADE_COLORS, avgColor, effectiveGrade, percentOf, proposedGrade, weightedAverage } from '../lib/grading'
@@ -31,7 +31,6 @@ export function GradesPage() {
   const settings = useSettings()
   const subjects = useSubjects()
   const groups = useGroups()
-  const myGroups = useMyGroups()
   const classes = useClasses()
   const students = useStudents()
   const categories = useCategories()
@@ -45,13 +44,8 @@ export function GradesPage() {
   const groupId = Number(params.get('groupId')) || undefined
   const classId = Number(params.get('classId')) || undefined
   const group = groups.find((g) => g.id === groupId)
-  const slots = useLiveQuery(() => db.timetable.toArray(), []) ?? []
   // Nabídka podle předmětu: moje skupiny daného předmětu + třídy, které v něm učím vcelku (podle rozvrhu)
-  const subjectGroups = useMemo(() => myGroups.filter((g) => !g.subjectId || g.subjectId === subjectId), [myGroups, subjectId])
-  const subjectClasses = useMemo(() => {
-    const taught = new Set(slots.filter((s) => s.subjectId === subjectId && s.classId && !s.groupId).map((s) => s.classId))
-    return taught.size ? classes.filter((c) => taught.has(c.id)) : (subjectGroups.length ? [] : classes)
-  }, [slots, subjectId, classes, subjectGroups.length])
+  const { groups: subjectGroups, classes: subjectClasses } = useTeachingUnits(subjectId)
   useEffect(() => {
     const fits = (groupId && subjectGroups.some((g) => g.id === groupId)) || (classId && subjectClasses.some((c) => c.id === classId))
     if (fits) return
