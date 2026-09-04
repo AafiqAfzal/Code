@@ -9,7 +9,7 @@ import { Badge, EmptyState, PageHeader } from '../components/ui'
 import { EVENT_KINDS, fmtDate, lessonRange, todayISO } from '../lib/format'
 import { collectReminders } from '../lib/reminders'
 import { scheduleForDate } from '../lib/schedule'
-import { holidayName } from '../lib/holidays'
+import { holidayName, schoolHolidayName } from '../lib/holidays'
 
 export function Dashboard() {
   const settings = useSettings()
@@ -22,6 +22,8 @@ export function Dashboard() {
   const changes = useLiveQuery(() => db.timetableChanges.where('date').equals(today).toArray(), [today]) ?? []
   const todaySlots = scheduleForDate(today, slots, changes)
   const wholeDayOff = changes.find((c) => c.kind === 'odpada' && c.lessonNumber == null)
+  const schoolHolidays = useLiveQuery(() => db.schoolHolidays.toArray(), []) ?? []
+  const vacation = schoolHolidayName(today, schoolHolidays)
   const upcoming = useLiveQuery(() => db.events.where('date').between(today, addDays(new Date(), 14).toISOString().slice(0, 10), true, true).sortBy('date'), [today]) ?? []
   const overdue = useLiveQuery(() => db.events.where('date').below(today).filter((e) => !e.done && e.kind === 'ukol').toArray(), [today]) ?? []
   const recentLogs = useLiveQuery(() => db.lessonLogs.orderBy('date').reverse().limit(5).toArray(), []) ?? []
@@ -87,6 +89,7 @@ export function Dashboard() {
           </div>
           <div className="card-body">
             {holidayName(today) && <p className="mb-2 rounded bg-rose-50 border border-rose-200 p-2 text-sm text-rose-800">Dnes je státní svátek: {holidayName(today)}.</p>}
+            {vacation && !holidayName(today) && <p className="mb-2 rounded bg-emerald-50 border border-emerald-200 p-2 text-sm text-emerald-800">{vacation}.</p>}
             {wholeDayOff && <p className="mb-2 rounded bg-red-50 border border-red-200 p-2 text-sm text-red-800">Dnes odpadá celý den{wholeDayOff.note ? `: ${wholeDayOff.note}` : ''}.</p>}
             {todaySlots.length === 0 ? <p className="text-sm text-slate-500">Dnes nemáte v rozvrhu žádnou hodinu.</p> : (
               <ul className="divide-y divide-slate-100">

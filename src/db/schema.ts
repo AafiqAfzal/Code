@@ -194,6 +194,14 @@ export interface SeatingPlan {
   updatedAt: string
 }
 
+/** Školní prázdniny (celostátní termíny MŠMT + jarní prázdniny podle okresu). */
+export interface SchoolHoliday {
+  id: number
+  name: string
+  from: string
+  to: string
+}
+
 /** Pravidelná položka rozvrhu (každý týden). */
 export type SlotKind = 'hodina' | 'krouzek'
 export interface TimetableSlot {
@@ -247,6 +255,7 @@ export class DiaryDB extends Dexie {
   timetable!: EntityTable<TimetableSlot, 'id'>
   seatingPlans!: EntityTable<SeatingPlan, 'id'>
   timetableChanges!: EntityTable<TimetableChange, 'id'>
+  schoolHolidays!: EntityTable<SchoolHoliday, 'id'>
 
   constructor() {
     super('pedagogicky-denik')
@@ -273,6 +282,9 @@ export class DiaryDB extends Dexie {
     this.version(3).stores({
       timetableChanges: '++id, date, kind',
     })
+    this.version(4).stores({
+      schoolHolidays: '++id, from, to',
+    })
   }
 }
 
@@ -281,6 +293,6 @@ export const db = new DiaryDB()
 export const ALL_TABLES = [
   'settings', 'subjects', 'classes', 'groups', 'students', 'studentNotes',
   'gradeCategories', 'gradingScales', 'assessments', 'termEvaluations',
-  'events', 'plans', 'planItems', 'lessonLogs', 'timetable', 'seatingPlans', 'timetableChanges',
+  'events', 'plans', 'planItems', 'lessonLogs', 'timetable', 'seatingPlans', 'timetableChanges', 'schoolHolidays',
 ] as const
 export type TableName = (typeof ALL_TABLES)[number]

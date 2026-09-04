@@ -1,4 +1,5 @@
 import { getISODay, parseISO } from 'date-fns'
+import type { SchoolHoliday } from '../db/schema'
 
 /** Velikonoční neděle (gregoriánský kalendář, algoritmus Meeus/Jones/Butcher). */
 function easterSunday(year: number): Date {
@@ -51,4 +52,22 @@ export function isWeekend(dateISO: string): boolean {
 /** Den, kdy se neučí: víkend nebo státní svátek. */
 export function isDayOff(dateISO: string): boolean {
   return isWeekend(dateISO) || !!holidayName(dateISO)
+}
+
+/**
+ * Celostátní prázdniny podle Organizace školního roku MŠMT (veřejný údaj).
+ * Jarní prázdniny se liší podle okresu – zadávají se v Nastavení.
+ */
+export const NATIONAL_SCHOOL_HOLIDAYS: Record<string, Omit<SchoolHoliday, 'id'>[]> = {
+  '2026/2027': [
+    { name: 'Podzimní prázdniny', from: '2026-10-29', to: '2026-10-30' },
+    { name: 'Vánoční prázdniny', from: '2026-12-23', to: '2027-01-03' },
+    { name: 'Pololetní prázdniny', from: '2027-01-29', to: '2027-01-29' },
+    { name: 'Velikonoční prázdniny', from: '2027-03-25', to: '2027-03-25' },
+    { name: 'Hlavní prázdniny', from: '2027-07-01', to: '2027-08-31' },
+  ],
+}
+
+export function schoolHolidayName(dateISO: string, holidays: Pick<SchoolHoliday, 'name' | 'from' | 'to'>[]): string | undefined {
+  return holidays.find((h) => h.from <= dateISO && dateISO <= h.to)?.name
 }

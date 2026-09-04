@@ -7,7 +7,7 @@ import { useClasses, useGroups, useSubjects } from '../components/hooks'
 import { Badge, ConfirmButton, Field, Modal, PageHeader } from '../components/ui'
 import { EVENT_KINDS, WEEKDAYS_SHORT, fmtDate, todayISO } from '../lib/format'
 import { activeLessons, scheduleForDate } from '../lib/schedule'
-import { holidayName } from '../lib/holidays'
+import { holidayName, schoolHolidayName } from '../lib/holidays'
 
 type Draft = Omit<CalendarEvent, 'id'> & { id?: number }
 const emptyDraft = (date: string): Draft => ({ title: '', kind: 'test', date, done: false })
@@ -24,6 +24,7 @@ export function CalendarPage() {
   const events = useLiveQuery(() => db.events.where('date').between(from, to, true, true).sortBy('date'), [from, to]) ?? []
   const slots = useLiveQuery(() => db.timetable.toArray(), []) ?? []
   const changes = useLiveQuery(() => db.timetableChanges.where('date').between(from, to, true, true).toArray(), [from, to]) ?? []
+  const schoolHolidays = useLiveQuery(() => db.schoolHolidays.toArray(), []) ?? []
   const days = eachDayOfInterval({ start: startOfWeek(month, { weekStartsOn: 1 }), end: endOfWeek(endOfMonth(month), { weekStartsOn: 1 }) })
   const today = todayISO()
   const visible = filter ? events.filter((e) => e.kind === filter) : events
@@ -73,16 +74,18 @@ export function CalendarPage() {
               const subst = sched.filter((e) => e.status === 'substitution').length
               const dayOff = changes.find((c) => c.date === iso && c.kind === 'odpada' && c.lessonNumber == null)
               const holiday = holidayName(iso)
+              const vacation = schoolHolidayName(iso, schoolHolidays)
               const weekend = wd >= 6
-              const dayBg = holiday ? 'bg-rose-50' : weekend ? 'bg-amber-50/70' : ''
+              const dayBg = holiday ? 'bg-rose-50' : vacation ? 'bg-emerald-50' : weekend ? 'bg-amber-50/70' : ''
               return (
                 <div key={iso} className={`min-h-24 border-b border-r border-slate-100 p-1 text-xs ${isSameMonth(d, month) ? dayBg : 'bg-slate-50 text-slate-400'} ${iso === today ? 'ring-2 ring-inset ring-blue-400' : ''}`}
                   onDoubleClick={() => setDraft(emptyDraft(iso))}>
                   <div className="flex justify-between">
                     <span className={`font-semibold ${iso === today ? 'text-blue-700' : holiday ? 'text-rose-700' : weekend && isSameMonth(d, month) ? 'text-amber-700' : ''}`}>{d.getDate()}</span>
-                    {wd <= 5 && !holiday && (lessons > 0 || cancelled > 0) && <span className="text-slate-400" title={`${lessons} hodin${cancelled ? `, ${cancelled} odpadá` : ''}${subst ? `, ${subst} suplování` : ''}`}>{lessons} h{cancelled ? <span className="text-red-500"> −{cancelled}</span> : ''}{subst ? <span className="text-amber-600"> +{subst}</span> : ''}</span>}
+                    {wd <= 5 && !holiday && !vacation && (lessons > 0 || cancelled > 0) && <span className="text-slate-400" title={`${lessons} hodin${cancelled ? `, ${cancelled} odpadá` : ''}${subst ? `, ${subst} suplování` : ''}`}>{lessons} h{cancelled ? <span className="text-red-500"> −{cancelled}</span> : ''}{subst ? <span className="text-amber-600"> +{subst}</span> : ''}</span>}
                   </div>
                   {holiday && <div className="mt-0.5 truncate rounded bg-rose-100 px-1 py-0.5 text-rose-800" title={holiday}>{holiday}</div>}
+                  {vacation && !holiday && wd <= 5 && <div className="mt-0.5 truncate rounded bg-emerald-100 px-1 py-0.5 text-emerald-800" title={vacation}>{vacation}</div>}
                   {dayOff && <div className="mt-0.5 truncate rounded bg-red-100 px-1 py-0.5 text-red-800" title={dayOff.note}>odpadá: {dayOff.note || 'celý den'}</div>}
                   {dayEvents.map((e) => (
                     <button key={e.id} onClick={() => setDraft({ ...e })}
@@ -94,7 +97,7 @@ export function CalendarPage() {
               )
             })}
           </div>
-          <div className="px-4 py-2 text-xs text-slate-400 flex flex-wrap gap-3"><span>Dvojklik na den = nová událost.</span><span><span className="inline-block h-3 w-3 rounded bg-amber-50 border border-amber-200 align-middle" /> víkend</span><span><span className="inline-block h-3 w-3 rounded bg-rose-100 border border-rose-200 align-middle" /> státní svátek</span></div>
+          <div className="px-4 py-2 text-xs text-slate-400 flex flex-wrap gap-3"><span>Dvojklik na den = nová událost.</span><span><span className="inline-block h-3 w-3 rounded bg-amber-50 border border-amber-200 align-middle" /> víkend</span><span><span className="inline-block h-3 w-3 rounded bg-rose-100 border border-rose-200 align-middle" /> státní svátek</span><span><span className="inline-block h-3 w-3 rounded bg-emerald-100 border border-emerald-200 align-middle" /> prázdniny</span></div>
         </div>
         <div className="card">
           <div className="px-4 py-3 border-b border-slate-200 font-semibold">Nadcházející</div>

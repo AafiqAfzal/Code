@@ -29,7 +29,7 @@ export function NewYearWizard({ open, onClose }: { open: boolean; onClose: () =>
   const run = async () => {
     setBusy(true)
     const summary: string[] = []
-    await db.transaction('rw', [db.classes, db.groups, db.students, db.assessments, db.lessonLogs, db.events, db.planItems, db.studentNotes, db.timetable, db.termEvaluations, db.settings, db.seatingPlans, db.timetableChanges], async () => {
+    await db.transaction('rw', [db.classes, db.groups, db.students, db.assessments, db.lessonLogs, db.events, db.planItems, db.studentNotes, db.timetable, db.termEvaluations, db.settings, db.seatingPlans, db.timetableChanges, db.schoolHolidays], async () => {
       if (opts.promote) {
         const rename = new Map<string, string>()
         for (const c of classes) {
@@ -59,6 +59,7 @@ export function NewYearWizard({ open, onClose }: { open: boolean; onClose: () =>
       if (opts.resetPlans) { const n = await db.planItems.filter((i) => i.done).modify({ done: false, doneDate: undefined }); summary.push(`Odškrtnutí v plánech zrušeno: ${n}`) }
       if (opts.clearNotes) { summary.push(`Smazáno poznámek: ${await db.studentNotes.count()}`); await db.studentNotes.clear() }
       await db.timetableChanges.clear()
+      await db.schoolHolidays.where('to').below(`${y1 + 1}-09-01`).delete()
       if (opts.clearTimetable) { await db.timetable.clear(); summary.push('Rozvrh vymazán') }
       if (nextYear && y1) await db.settings.update(1, { schoolYear: nextYear, yearStart: `${y1 + 1}-09-01`, yearEnd: `${y2 + 1}-06-30` })
     })

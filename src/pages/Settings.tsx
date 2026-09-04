@@ -9,6 +9,8 @@ import { downloadBlob, exportBackup, importBackup, wipeAll } from '../lib/backup
 import { isDesktop, runDailyAutoBackupForce, saveBackupAs } from '../lib/desktop'
 import { PIN_RE, clearPin, setPin, verifyPin } from '../lib/pin'
 import { NewYearWizard } from '../components/NewYearWizard'
+import { NATIONAL_SCHOOL_HOLIDAYS } from '../lib/holidays'
+import { fmtDate } from '../lib/format'
 
 export function SettingsPage() {
   const settings = useSettings()
@@ -41,6 +43,8 @@ export function SettingsPage() {
       default: return ''
     }
   }
+  const holidays = useLiveQuery(() => db.schoolHolidays.orderBy('from').toArray(), []) ?? []
+  const [hol, setHol] = useState({ name: 'Jarní prázdniny', from: '', to: '' })
   const counts = useLiveQuery(async () => ({ students: await db.students.count(), assessments: await db.assessments.count() }), [])
 
   const upd = (patch: Partial<Settings>) => db.settings.update(1, patch)
@@ -109,6 +113,33 @@ export function SettingsPage() {
         <Field label="Text pravidel hodnocení (zobrazí se jako připomínka)" className="mt-3">
           <textarea className="input font-mono text-xs" rows={8} defaultValue={scale.rulesText} onBlur={(e) => db.gradingScales.update(1, { rulesText: e.target.value })} />
         </Field>
+      </section>
+
+      <section className="card card-body">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="card-title">Školní prázdniny</h2>
+          {NATIONAL_SCHOOL_HOLIDAYS[settings?.schoolYear ?? ''] && (
+            <button className="btn-secondary btn-sm" onClick={async () => {
+              const preset = NATIONAL_SCHOOL_HOLIDAYS[settings!.schoolYear]
+              const existing = new Set(holidays.map((h) => `${h.name}|${h.from}`))
+              const add = preset.filter((p) => !existing.has(`${p.name}|${p.from}`))
+              await db.schoolHolidays.bulkAdd(add); show(add.length ? `Přidáno ${add.length} termínů.` : 'Termíny už jsou vložené.')
+            }}>Načíst celostátní termíny {settings?.schoolYear} (MŠMT)</button>
+          )}
+        </div>
+        <p className="text-xs text-slate-500 mb-3">Celostátní prázdniny jsou pro všechny školy stejné. <b>Jarní prázdniny</b> se liší podle okresu, zadejte je ručně. Prázdniny se zobrazují v kalendáři, v rozvrhu a na přehledu.</p>
+        {holidays.length > 0 && (
+          <table className="table mb-3"><thead><tr><th>Název</th><th>Od</th><th>Do</th><th></th></tr></thead>
+            <tbody>{holidays.map((h) => (
+              <tr key={h.id}><td>{h.name}</td><td>{fmtDate(h.from)}</td><td>{fmtDate(h.to)}</td><td className="text-right"><ConfirmButton onConfirm={() => db.schoolHolidays.delete(h.id)}>Smazat</ConfirmButton></td></tr>
+            ))}</tbody></table>
+        )}
+        <div className="grid gap-3 md:grid-cols-4 items-end">
+          <Field label="Název"><input className="input" value={hol.name} onChange={(e) => setHol({ ...hol, name: e.target.value })} /></Field>
+          <Field label="Od"><input type="date" className="input" value={hol.from} onChange={(e) => setHol({ ...hol, from: e.target.value, to: hol.to || e.target.value })} /></Field>
+          <Field label="Do"><input type="date" className="input" value={hol.to} onChange={(e) => setHol({ ...hol, to: e.target.value })} /></Field>
+          <button className="btn-primary btn-sm" disabled={!hol.name.trim() || !hol.from || !hol.to || hol.to < hol.from} onClick={async () => { await db.schoolHolidays.add({ name: hol.name.trim(), from: hol.from, to: hol.to }); setHol({ name: 'Jarní prázdniny', from: '', to: '' }); show('Prázdniny přidány.') }}>Přidat</button>
+        </div>
       </section>
 
       <section className="card card-body">
