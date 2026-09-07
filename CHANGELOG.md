@@ -1,6 +1,6 @@
 # Změny
 
-## Nevydáno
+## 3.0.1
 
 - Záloha do složky Dokumenty při každém zavření aplikace (dosud jen jednou denně při spuštění)
 - Nastavení: obnova z libovolné zálohy ve složce Dokumenty, nejen v prázdné aplikaci
