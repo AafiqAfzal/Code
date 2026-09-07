@@ -37,8 +37,8 @@ Pro přenos mezi počítači slouží záloha ve formátu JSON (Nastavení → Z
 
 Aplikace je postavená na [Tauri](https://tauri.app): používá prohlížečové jádro WebView2,
 které je součástí Windows 10/11, takže instalátor má jen několik megabajtů. Data zůstávají
-v profilu aplikace na daném počítači, automatická záloha se ukládá jednou denně do
-`Dokumenty\Pedagogický deník\zalohy` (posledních 30 záloh).
+v profilu aplikace na daném počítači, automatická záloha se ukládá při spuštění (jednou denně)
+a při každém zavření aplikace do `Dokumenty\Pedagogický deník\zalohy` (posledních 30 záloh).
 
 1. Otevřete stránku **Releases** repozitáře a stáhněte `Pedagogicky.denik_<verze>_x64-setup.exe`
    (instalace bez práv správce).

@@ -1,5 +1,10 @@
 # Změny
 
+## Nevydáno
+
+- Záloha do složky Dokumenty při každém zavření aplikace (dosud jen jednou denně při spuštění)
+- Nastavení: obnova z libovolné zálohy ve složce Dokumenty, nejen v prázdné aplikaci
+
 ## 3.0.0
 
 - Desktopová vrstva přepsaná z Electronu na Tauri: instalátor jen několik MB, používá WebView2 zabudovaný ve Windows

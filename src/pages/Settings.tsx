@@ -207,7 +207,7 @@ export function SettingsPage() {
         <p className="text-xs text-slate-500 mb-3">Data jsou uložena pouze v tomto prohlížeči (žáků: {counts?.students ?? 0}, známek: {counts?.assessments ?? 0}). Pravidelně si stahujte zálohu – např. na konci týdne – a uložte ji na bezpečné místo. Zálohu lze nahrát v jiném prohlížeči či počítači.</p>
         {isDesktop() && (
           <div className="mb-3 rounded border border-green-200 bg-green-50 p-3 text-xs text-green-900">
-            <b>Desktopová verze:</b> záloha se ukládá automaticky jednou denně při spuštění do složky <code>{backupDir}</code> (uchovává se posledních 30). Data aplikace jsou uložena v profilu aplikace na tomto počítači.
+            <b>Desktopová verze:</b> záloha se ukládá automaticky při spuštění (jednou denně) a při každém zavření aplikace do složky <code>{backupDir}</code> (uchovává se posledních 30). Data aplikace jsou uložena v profilu aplikace na tomto počítači.
             <div className="mt-2 flex gap-2">
               <button className="btn-secondary btn-sm" onClick={async () => { const f = await runDailyAutoBackupForce(); show(f ? `Záloha uložena: ${f}` : 'Záloha selhala.') }}>Zálohovat teď</button>
               <button className="btn-secondary btn-sm" onClick={() => window.denik?.openBackupDir()}>Otevřít složku záloh</button>

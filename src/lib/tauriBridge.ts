@@ -11,6 +11,8 @@ import { check, type Update } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { openPath, openUrl } from '@tauri-apps/plugin-opener'
 import { documentDir, join } from '@tauri-apps/api/path'
+import { getCurrentWindow } from '@tauri-apps/api/window'
+import { exportBackup } from './backup'
 
 const APP_DIR = 'Pedagogický deník'
 const BACKUP_DIR = `${APP_DIR}/zalohy`
@@ -103,6 +105,22 @@ export function installTauriBridge() {
     const a = (e.target as HTMLElement).closest('a[href^="http"]') as HTMLAnchorElement | null
     if (a && a.target === '_blank') { e.preventDefault(); openUrl(a.href) }
   })
+  // záloha do Dokumentů při každém zavření okna (nejvýše 8 s, pak se okno zavře i tak)
+  let closing = false
+  const win = getCurrentWindow()
+  win.onCloseRequested(async (event) => {
+    if (closing) return
+    closing = true
+    event.preventDefault()
+    log('close requested, backing up')
+    try {
+      const backup = exportBackup().then((b) => b.text()).then((json) => denik.autoBackup(json))
+      await Promise.race([backup, new Promise((r) => setTimeout(r, 8000))])
+    } catch (e) {
+      log(`backup on close failed: ${String((e as Error)?.message ?? e)}`)
+    }
+    await win.destroy()
+  }).catch((e) => log(`onCloseRequested failed: ${String(e)}`))
   // kontrola aktualizací po startu a každé 4 hodiny
   setTimeout(() => checkForUpdates(true), 4000)
   setInterval(() => checkForUpdates(true), 4 * 60 * 60 * 1000)
