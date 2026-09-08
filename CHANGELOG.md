@@ -1,6 +1,6 @@
 # Změny
 
-## Nevydáno
+## 3.0.2
 
 - Rozvrh: dozory o přestávkách a v polední pauze (proužek nad hodinou, přehled dne, nahrání ze souboru JSON, ruční přidání z políčka)
 
