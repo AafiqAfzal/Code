@@ -1,5 +1,9 @@
 # Změny
 
+## Nevydáno
+
+- Rozvrh: dozory o přestávkách a v polední pauze (proužek nad hodinou, přehled dne, nahrání ze souboru JSON, ruční přidání z políčka)
+
 ## 3.0.1
 
 - Záloha do složky Dokumenty při každém zavření aplikace (dosud jen jednou denně při spuštění)

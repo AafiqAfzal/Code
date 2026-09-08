@@ -255,7 +255,7 @@ export interface SchoolHoliday {
 }
 
 /** Pravidelná položka rozvrhu (každý týden). */
-export type SlotKind = 'hodina' | 'krouzek'
+export type SlotKind = 'hodina' | 'krouzek' | 'dozor'
 export interface TimetableSlot {
   id: number
   weekday: number // 1 = pondělí … 5 = pátek
@@ -264,10 +264,13 @@ export interface TimetableSlot {
   groupId?: number
   classId?: number
   room?: string
-  /** hodina (výchozí) nebo kroužek */
+  /** hodina (výchozí), kroužek nebo dozor (o přestávce před danou hodinou; room = místo) */
   kind?: SlotKind
-  /** Vlastní název, např. „Konverzace v Aj“ (u kroužku) */
+  /** Vlastní název, např. „Konverzace v Aj“ (u kroužku), „Polední pauza“ (u dozoru) */
   title?: string
+  /** U dozoru: vlastní čas místo standardní přestávky, např. polední pauza 12:25–13:20 */
+  timeFrom?: string
+  timeTo?: string
 }
 
 /**

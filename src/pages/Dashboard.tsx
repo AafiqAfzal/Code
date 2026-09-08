@@ -119,9 +119,16 @@ export function Dashboard() {
             {holidayName(today) && <p className="mb-2 rounded bg-rose-50 border border-rose-200 p-2 text-sm text-rose-800">Dnes je státní svátek: {holidayName(today)}.</p>}
             {vacation && !holidayName(today) && <p className="mb-2 rounded bg-emerald-50 border border-emerald-200 p-2 text-sm text-emerald-800">{vacation}.</p>}
             {wholeDayOff && <p className="mb-2 rounded bg-red-50 border border-red-200 p-2 text-sm text-red-800">Dnes odpadá celý den{wholeDayOff.note ? `: ${wholeDayOff.note}` : ''}.</p>}
-            {todaySlots.length === 0 ? <p className="text-sm text-slate-500">Dnes nemáte v rozvrhu žádnou hodinu.</p> : (
+            {todaySlots.length === 0 ? <p className="text-sm text-slate-500">Dnes nemáte v rozvrhu žádnou hodinu ani dozor.</p> : (
               <ul className="divide-y divide-slate-100">
-                {todaySlots.map((s, i) => (
+                {todaySlots.map((s, i) => s.kind === 'dozor' ? (
+                  <li key={i} className={`flex items-center gap-3 py-1.5 text-sm ${s.status === 'cancelled' ? 'opacity-60 line-through' : ''}`}>
+                    <span className="w-28 text-xs text-slate-500">{s.timeFrom}–{s.timeTo}</span>
+                    <Badge className="bg-teal-100 text-teal-900">Dozor</Badge>
+                    <span className="font-medium">{s.room}</span>
+                    {s.title && <span className="text-slate-400">{s.title}</span>}
+                  </li>
+                ) : (
                   <li key={i} className={`flex items-center gap-3 py-2 text-sm ${s.status === 'cancelled' ? 'opacity-60' : ''}`}>
                     <span className="w-28 text-slate-500">{s.lessonNumber}. h <span className="text-xs">{lessonRange(s.lessonNumber)}</span></span>
                     <Badge className={s.kind === 'krouzek' ? 'bg-purple-100 text-purple-800' : s.status === 'substitution' ? 'bg-amber-100 text-amber-900' : 'bg-blue-100 text-blue-800'}>{s.kind === 'krouzek' ? 'Kroužek' : s.status === 'substitution' ? `Supl. ${subjectName(s.subjectId) ?? ''}` : subjectName(s.subjectId)}</Badge>

@@ -124,6 +124,14 @@ export interface TimetableFile {
   slots: { weekday: number; lessonNumber: number; subject: string; className: string; groupNo?: number | null; room?: string }[]
 }
 
+/** Soubor s dozory (JSON): beforeLesson = přestávka před n-tou hodinou (1 = 7:40–8:00). */
+export interface DutiesFile {
+  app: 'pedagogicky-denik'
+  type: 'duties'
+  name?: string
+  duties: { weekday: number; beforeLesson: number; place: string; title?: string; timeFrom?: string; timeTo?: string }[]
+}
+
 /** Soubor s tematickými plány (JSON). */
 export interface PlansFile {
   app: 'pedagogicky-denik'
@@ -159,7 +167,7 @@ export async function importTimetableFile(file: TimetableFile): Promise<number> 
     classes.push({ id, name, gradeLevel: gradeOf(name) })
     return id
   }
-  await db.timetable.clear()
+  await db.timetable.filter((s) => s.kind !== 'dozor').delete()
   let n = 0
   for (const sl of file.slots) {
     const subjectId = subjects.find((s) => s.abbreviation.toLowerCase() === sl.subject.toLowerCase() || s.name.toLowerCase() === sl.subject.toLowerCase())?.id ?? (await ensureSubject({ abbr: sl.subject, name: sl.subject }))
@@ -175,6 +183,16 @@ export async function importTimetableFile(file: TimetableFile): Promise<number> 
     n++
   }
   return n
+}
+
+/** Nahraje dozory ze souboru; dosavadní dozory nahradí, hodiny a kroužky ponechá. Vrací počet dozorů. */
+export async function importDutiesFile(file: DutiesFile): Promise<number> {
+  if (file.app !== 'pedagogicky-denik' || file.type !== 'duties') throw new Error('Soubor není seznam dozorů pro Pedagogický deník.')
+  await db.timetable.filter((s) => s.kind === 'dozor').delete()
+  for (const d of file.duties) {
+    await db.timetable.add({ weekday: d.weekday, lessonNumber: d.beforeLesson, kind: 'dozor', room: d.place, title: d.title, timeFrom: d.timeFrom, timeTo: d.timeTo })
+  }
+  return file.duties.length
 }
 
 /** Nahraje tematické plány ze souboru; plány se stejným názvem se nepřepisují. Vrací počet nových. */

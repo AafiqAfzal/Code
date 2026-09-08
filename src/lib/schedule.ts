@@ -1,5 +1,6 @@
 import { getISODay, parseISO } from 'date-fns'
 import type { TimetableChange, TimetableSlot } from '../db/schema'
+import { BREAK_RANGES } from './format'
 
 export type ScheduleStatus = 'regular' | 'cancelled' | 'substitution'
 
@@ -16,7 +17,10 @@ export interface ScheduleEntry {
   classId?: number
   room?: string
   title?: string
-  kind: 'hodina' | 'krouzek' | 'suplovani'
+  kind: 'hodina' | 'krouzek' | 'suplovani' | 'dozor'
+  /** u dozoru čas (standardní přestávka nebo vlastní) */
+  timeFrom?: string
+  timeTo?: string
 }
 
 /** Skutečný rozvrh pro dané datum = pravidelné hodiny − odpadlé + suplování. */
@@ -26,19 +30,26 @@ export function scheduleForDate(date: string, slots: TimetableSlot[], changes: T
   const wholeDay = dayChanges.find((c) => c.kind === 'odpada' && c.lessonNumber == null)
   const entries: ScheduleEntry[] = []
   for (const slot of slots.filter((s) => s.weekday === weekday)) {
-    const cancel = wholeDay ?? dayChanges.find((c) => c.kind === 'odpada' && c.lessonNumber === slot.lessonNumber)
+    // dozor ruší jen odpadnutí celého dne, ne odpadnutí jedné hodiny
+    const cancel = wholeDay ?? (slot.kind === 'dozor' ? undefined : dayChanges.find((c) => c.kind === 'odpada' && c.lessonNumber === slot.lessonNumber))
     entries.push({
       lessonNumber: slot.lessonNumber, status: cancel ? 'cancelled' : 'regular', slot, change: cancel, reason: cancel?.note,
-      subjectId: slot.subjectId, groupId: slot.groupId, classId: slot.classId, room: slot.room, title: slot.title, kind: slot.kind === 'krouzek' ? 'krouzek' : 'hodina',
+      subjectId: slot.subjectId, groupId: slot.groupId, classId: slot.classId, room: slot.room, title: slot.title, kind: slot.kind === 'krouzek' ? 'krouzek' : slot.kind === 'dozor' ? 'dozor' : 'hodina',
+      timeFrom: slot.kind === 'dozor' ? slot.timeFrom || BREAK_RANGES[slot.lessonNumber]?.[0] : undefined,
+      timeTo: slot.kind === 'dozor' ? slot.timeTo || BREAK_RANGES[slot.lessonNumber]?.[1] : undefined,
     })
   }
   for (const c of dayChanges.filter((c) => c.kind === 'suplovani')) {
     entries.push({ lessonNumber: c.lessonNumber ?? 0, status: 'substitution', change: c, subjectId: c.subjectId, groupId: c.groupId, classId: c.classId, room: c.room, title: c.title, kind: 'suplovani' })
   }
-  return entries.sort((a, b) => a.lessonNumber - b.lessonNumber)
+  // dozor před n-tou hodinou se řadí před ni
+  const key = (e: ScheduleEntry) => e.lessonNumber - (e.kind === 'dozor' ? 0.5 : 0)
+  return entries.sort((a, b) => key(a) - key(b))
 }
 
-/** Jen hodiny, které se skutečně odučí. */
-export const activeLessons = (entries: ScheduleEntry[]) => entries.filter((e) => e.status !== 'cancelled')
+/** Jen hodiny, které se skutečně odučí (bez dozorů). */
+export const activeLessons = (entries: ScheduleEntry[]) => entries.filter((e) => e.status !== 'cancelled' && e.kind !== 'dozor')
+/** Dozory daného dne (neodpadlé). */
+export const activeDuties = (entries: ScheduleEntry[]) => entries.filter((e) => e.status !== 'cancelled' && e.kind === 'dozor')
 
 export const CHANGE_REASONS = ['projektový den', 'třída na akci / exkurzi', 'nepřítomnost učitele', 'ředitelské volno', 'jiný důvod']

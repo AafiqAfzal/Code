@@ -78,4 +78,7 @@ export const LESSON_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8]
 /** Začátek hodiny, např. "8:00". */
 export const LESSON_TIMES = LESSON_RANGES.map((r) => r?.[0] ?? '')
 /** Celé rozmezí, např. "8:00–8:45". */
+/** Přestávka před n-tou hodinou (index 1 = před 1. hodinou od 7:40, 2 = po 1. hodině …). */
+export const BREAK_RANGES: (readonly [string, string] | null)[] = LESSON_RANGES.map((r, i) => (i === 0 || !r ? null : [i === 1 ? '7:40' : LESSON_RANGES[i - 1]![1], r[0]] as const))
+export const breakRange = (n: number) => { const r = BREAK_RANGES[n]; return r ? `${r[0]}–${r[1]}` : '' }
 export const lessonRange = (n: number) => { const r = LESSON_RANGES[n]; return r ? `${r[0]}–${r[1]}` : '' }
