@@ -1,6 +1,6 @@
 # Změny
 
-## Nevydáno
+## 3.0.3
 
 - Rozvrh: dozory o přestávkách v úzkých sloupcích mezi hodinami, dozor během hodiny (polední pauza) jako políčko hodiny
 
