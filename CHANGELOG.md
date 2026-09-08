@@ -1,5 +1,9 @@
 # Změny
 
+## Nevydáno
+
+- Rozvrh: dozory o přestávkách v úzkých sloupcích mezi hodinami, dozor během hodiny (polední pauza) jako políčko hodiny
+
 ## 3.0.2
 
 - Rozvrh: dozory o přestávkách a v polední pauze (proužek nad hodinou, přehled dne, nahrání ze souboru JSON, ruční přidání z políčka)

@@ -129,7 +129,7 @@ export interface DutiesFile {
   app: 'pedagogicky-denik'
   type: 'duties'
   name?: string
-  duties: { weekday: number; beforeLesson: number; place: string; title?: string; timeFrom?: string; timeTo?: string }[]
+  duties: { weekday: number; beforeLesson: number; place: string; title?: string; timeFrom?: string; timeTo?: string; duringLesson?: boolean }[]
 }
 
 /** Soubor s tematickými plány (JSON). */
@@ -190,7 +190,7 @@ export async function importDutiesFile(file: DutiesFile): Promise<number> {
   if (file.app !== 'pedagogicky-denik' || file.type !== 'duties') throw new Error('Soubor není seznam dozorů pro Pedagogický deník.')
   await db.timetable.filter((s) => s.kind === 'dozor').delete()
   for (const d of file.duties) {
-    await db.timetable.add({ weekday: d.weekday, lessonNumber: d.beforeLesson, kind: 'dozor', room: d.place, title: d.title, timeFrom: d.timeFrom, timeTo: d.timeTo })
+    await db.timetable.add({ weekday: d.weekday, lessonNumber: d.beforeLesson, kind: 'dozor', room: d.place, title: d.title, timeFrom: d.timeFrom, timeTo: d.timeTo, duringLesson: d.duringLesson })
   }
   return file.duties.length
 }

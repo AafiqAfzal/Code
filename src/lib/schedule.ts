@@ -1,6 +1,6 @@
 import { getISODay, parseISO } from 'date-fns'
 import type { TimetableChange, TimetableSlot } from '../db/schema'
-import { BREAK_RANGES } from './format'
+import { BREAK_RANGES, LESSON_RANGES } from './format'
 
 export type ScheduleStatus = 'regular' | 'cancelled' | 'substitution'
 
@@ -23,6 +23,16 @@ export interface ScheduleEntry {
   timeTo?: string
 }
 
+const mins = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+/** Dozor během hodiny (polední pauza): explicitně, nebo když vlastní čas zasahuje do hodiny. */
+export function isDuringLesson(slot: Pick<TimetableSlot, 'kind' | 'lessonNumber' | 'timeFrom' | 'timeTo' | 'duringLesson'>): boolean {
+  if (slot.kind !== 'dozor') return false
+  if (slot.duringLesson != null) return slot.duringLesson
+  const r = LESSON_RANGES[slot.lessonNumber]
+  if (!r || !slot.timeFrom || !slot.timeTo) return false
+  return mins(slot.timeTo) > mins(r[0]) + 5 && mins(slot.timeFrom) < mins(r[1])
+}
+
 /** Skutečný rozvrh pro dané datum = pravidelné hodiny − odpadlé + suplování. */
 export function scheduleForDate(date: string, slots: TimetableSlot[], changes: TimetableChange[]): ScheduleEntry[] {
   const weekday = getISODay(parseISO(date))
@@ -43,7 +53,7 @@ export function scheduleForDate(date: string, slots: TimetableSlot[], changes: T
     entries.push({ lessonNumber: c.lessonNumber ?? 0, status: 'substitution', change: c, subjectId: c.subjectId, groupId: c.groupId, classId: c.classId, room: c.room, title: c.title, kind: 'suplovani' })
   }
   // dozor před n-tou hodinou se řadí před ni
-  const key = (e: ScheduleEntry) => e.lessonNumber - (e.kind === 'dozor' ? 0.5 : 0)
+  const key = (e: ScheduleEntry) => e.lessonNumber - (e.kind === 'dozor' && !(e.slot && isDuringLesson(e.slot)) ? 0.5 : 0)
   return entries.sort((a, b) => key(a) - key(b))
 }
 

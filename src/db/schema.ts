@@ -271,6 +271,8 @@ export interface TimetableSlot {
   /** U dozoru: vlastní čas místo standardní přestávky, např. polední pauza 12:25–13:20 */
   timeFrom?: string
   timeTo?: string
+  /** U dozoru: koná se během dané hodiny (polední pauza), ne o přestávce před ní – zobrazí se jako políčko hodiny */
+  duringLesson?: boolean
 }
 
 /**

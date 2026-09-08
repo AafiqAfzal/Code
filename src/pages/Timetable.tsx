@@ -8,7 +8,7 @@ import { useClasses, useGroups, useMyGroups, useSettings, useSubjects } from '..
 import { ConfirmButton, Field, Modal, PageHeader } from '../components/ui'
 import { LESSON_NUMBERS, WEEKDAYS, breakRange, fmtDate, lessonRange } from '../lib/format'
 import { importDutiesFile, importTimetableFile, readJsonFile, type DutiesFile, type TimetableFile } from '../db/seed'
-import { CHANGE_REASONS, scheduleForDate, type ScheduleEntry } from '../lib/schedule'
+import { CHANGE_REASONS, isDuringLesson, scheduleForDate, type ScheduleEntry } from '../lib/schedule'
 import { holidayName, schoolHolidayName } from '../lib/holidays'
 
 type SlotDraft = Omit<TimetableSlot, 'id'> & { id?: number }
@@ -53,6 +53,9 @@ export function TimetablePage() {
   }
   const newSlot = (weekday: number, lessonNumber: number, kind: 'hodina' | 'krouzek' | 'dozor' = 'hodina'): SlotDraft => kind === 'dozor' ? { weekday, lessonNumber, kind, room: '' } : { weekday, lessonNumber, subjectId: subjects[0]?.id, kind, title: kind === 'krouzek' ? 'Kroužek' : undefined }
   const dutyTime = (e: ScheduleEntry) => e.timeFrom && e.timeTo ? `${e.timeFrom}–${e.timeTo}` : breakRange(e.lessonNumber)
+  const isLessonDuty = (e: ScheduleEntry) => e.kind === 'dozor' && !!e.slot && isDuringLesson(e.slot)
+  // sloupec přestávky se zobrazí jen tam, kde v týdnu nějaký dozor je
+  const breakShown = (l: number) => slots.some((s) => s.kind === 'dozor' && s.lessonNumber === l && !isDuringLesson(s))
   const newChange = (date: string, kind: ChangeKind, lessonNumber?: number): ChangeDraft => ({ date, kind, lessonNumber, subjectId: kind === 'suplovani' ? subjects[0]?.id : undefined, note: kind === 'odpada' ? CHANGE_REASONS[0] : '' })
 
   const cellClass = (e?: ScheduleEntry) => {
@@ -83,7 +86,10 @@ export function TimetablePage() {
           <div className="flex gap-1"><button className="btn-secondary btn-sm" onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}>Tento týden</button><button className="btn-ghost btn-sm" onClick={() => setWeekStart(addWeeks(weekStart, 1))}><ChevronRight size={16} /></button></div>
         </div>
         <table className="table text-center">
-          <thead><tr><th className="text-left">Den</th>{LESSON_NUMBERS.map((l) => <th key={l} className="text-center whitespace-nowrap min-w-24">{l}. hodina<div className="font-normal normal-case text-[11px] text-slate-500">{lessonRange(l)}</div></th>)}<th></th></tr></thead>
+          <thead><tr><th className="text-left">Den</th>{LESSON_NUMBERS.map((l) => [
+            <th key={`b${l}`} className={breakShown(l) ? 'text-center !px-0 w-14 min-w-14' : '!p-0 w-1'}>{breakShown(l) && <div className="font-normal normal-case text-[10px] leading-tight text-teal-700">dozor<div className="text-slate-500">{breakRange(l)}</div></div>}</th>,
+            <th key={l} className="text-center whitespace-nowrap min-w-24">{l}. hodina<div className="font-normal normal-case text-[11px] text-slate-500">{lessonRange(l)}</div></th>,
+          ])}<th></th></tr></thead>
           <tbody>
             {days.map(({ name, date }) => {
               const entries = scheduleForDate(date, slots, changes)
@@ -100,17 +106,33 @@ export function TimetablePage() {
                     {wholeDay && <div className="mt-1 text-[11px] text-red-700">odpadá: {wholeDay.note || 'celý den'}</div>}
                   </td>
                   {LESSON_NUMBERS.map((l) => {
-                    const duties = entries.filter((e) => e.lessonNumber === l && e.kind === 'dozor')
+                    const breakDuties = entries.filter((e) => e.lessonNumber === l && e.kind === 'dozor' && !isLessonDuty(e))
+                    const lessonDuty = entries.find((e) => e.lessonNumber === l && isLessonDuty(e))
                     const es = entries.filter((e) => e.lessonNumber === l && e.kind !== 'dozor')
                     const e = es.find((x) => x.status !== 'cancelled') ?? es[0]
-                    return (
-                      <td key={l} className="p-0.5 align-top">
-                        {duties.map((d) => (
+                    const faded = holiday || vacation ? 'opacity-40' : ''
+                    const weekday = days.findIndex((d) => d.date === date) + 1
+                    return [
+                      <td key={`b${l}`} className={breakShown(l) ? '!px-0.5 !py-0.5 align-top' : '!p-0'}>
+                        {breakDuties.map((d) => (
                           <button key={d.slot!.id} onClick={() => setSlotDraft({ ...d.slot! })} title={`Dozor ${dutyTime(d)} · ${d.room ?? ''}${d.title ? ` · ${d.title}` : ''}`}
-                            className={`mb-0.5 w-full truncate rounded border border-teal-300 bg-teal-50 px-1 text-left text-[10px] leading-4 text-teal-900 ${d.status === 'cancelled' ? 'line-through opacity-50' : ''} ${holiday || vacation ? 'opacity-40' : ''}`}>
-                            <Eye size={10} className="inline -mt-0.5 mr-0.5" />{dutyTime(d)} {d.title || 'dozor'}{d.room ? ` · ${d.room}` : ''}
+                            className={`flex h-16 w-full flex-col items-center justify-center rounded border border-teal-300 bg-teal-100 text-[10px] leading-tight text-teal-900 ${d.status === 'cancelled' ? 'line-through opacity-50' : ''} ${faded}`}>
+                            <Eye size={11} />
+                            <span className="mt-0.5">{d.timeFrom}</span><span>{d.timeTo}</span>
+                            <span className="w-full truncate px-0.5 font-semibold" title={d.room}>{d.room}</span>
                           </button>
                         ))}
+                        {breakShown(l) && breakDuties.length === 0 && <button onClick={() => setSlotDraft(newSlot(weekday, l, 'dozor'))} title={`Přidat dozor ${breakRange(l)}`} className={`h-16 w-full rounded border border-dashed border-slate-200 hover:bg-slate-50 ${faded}`} />}
+                      </td>,
+                      <td key={l} className="p-0.5 align-top">
+                        {lessonDuty && !e ? (
+                          <button onClick={() => setSlotDraft({ ...lessonDuty.slot! })} title={`Dozor ${dutyTime(lessonDuty)} · ${lessonDuty.room ?? ''}`}
+                            className={`h-16 w-full rounded border border-teal-300 bg-teal-100 text-xs text-teal-900 ${lessonDuty.status === 'cancelled' ? 'line-through opacity-50' : ''} ${faded}`}>
+                            <div className="font-bold"><Eye size={12} className="inline -mt-0.5 mr-1" />{lessonDuty.title || 'Dozor'}</div>
+                            <div className="truncate px-1">{lessonDuty.room}</div>
+                            <div className="text-[10px] opacity-80">{dutyTime(lessonDuty)}</div>
+                          </button>
+                        ) : (
                         <button onClick={() => setPick({ date, lessonNumber: l, entry: e })}
                           className={`h-16 w-full rounded border text-xs ${cellClass(e)} ${holiday || vacation ? 'opacity-40' : ''}`} style={e && e.status === 'regular' && e.kind === 'hodina' ? { background: gColor(e.groupId) ?? '#2563eb' } : undefined}
                           title={e?.reason ? `Odpadá: ${e.reason}` : e?.change?.note}>
@@ -124,8 +146,10 @@ export function TimetablePage() {
                             </>
                           )}
                         </button>
-                      </td>
-                    )
+                        )}
+                        {lessonDuty && e && <button onClick={() => setSlotDraft({ ...lessonDuty.slot! })} className="mt-0.5 w-full truncate rounded border border-teal-300 bg-teal-50 px-1 text-[10px] text-teal-900"><Eye size={10} className="inline -mt-0.5 mr-0.5" />{lessonDuty.title || 'dozor'} {dutyTime(lessonDuty)}</button>}
+                      </td>,
+                    ]
                   })}
                   <td className="align-top pt-2 no-print">
                     {wholeDay ? <ConfirmButton className="btn-secondary btn-sm" confirmLabel="Obnovit?" onConfirm={() => db.timetableChanges.delete(wholeDay.id)}>Obnovit den</ConfirmButton>
@@ -141,7 +165,7 @@ export function TimetablePage() {
           <span><span className="inline-block h-3 w-3 rounded bg-purple-600 align-middle" /> kroužek</span>
           <span><span className="inline-block h-3 w-3 rounded bg-amber-200 border border-amber-400 align-middle" /> suplování (jen tento den)</span>
           <span><span className="inline-block h-3 w-3 rounded bg-slate-200 align-middle" /> odpadá</span>
-          <span><span className="inline-block h-3 w-3 rounded bg-teal-50 border border-teal-300 align-middle" /> dozor o přestávce před hodinou</span>
+          <span><span className="inline-block h-3 w-3 rounded bg-teal-100 border border-teal-300 align-middle" /> dozor (úzký sloupec = o přestávce, celé políčko = během hodiny, např. polední pauza)</span>
         </div>
       </div>
 
@@ -184,18 +208,22 @@ export function TimetablePage() {
                 </>
               )}
               <button className="btn-secondary w-full justify-start" onClick={() => { setSlotDraft(newSlot(days.findIndex((d) => d.date === pick.date) + 1, pick.lessonNumber, 'dozor')); setPick(null) }}><Eye size={14} /> Přidat dozor o přestávce před {pick.lessonNumber}. hodinou ({breakRange(pick.lessonNumber)})</button>
+              {!pick.entry && <button className="btn-secondary w-full justify-start" onClick={() => { setSlotDraft({ ...newSlot(days.findIndex((d) => d.date === pick.date) + 1, pick.lessonNumber, 'dozor'), duringLesson: true, title: 'Polední pauza' }); setPick(null) }}><Eye size={14} /> Přidat dozor během {pick.lessonNumber}. hodiny (polední pauza)</button>}
             </div>
           </div>
         )}
       </Modal>
 
       {/* Pravidelná hodina / kroužek */}
-      <Modal open={!!slotDraft} onClose={() => setSlotDraft(null)} title={slotDraft ? (slotDraft.kind === 'dozor' ? `Dozor – ${WEEKDAYS[slotDraft.weekday - 1]}, přestávka před ${slotDraft.lessonNumber}. hodinou (${breakRange(slotDraft.lessonNumber)})` : `${slotDraft.kind === 'krouzek' ? 'Kroužek' : 'Pravidelná hodina'} – ${WEEKDAYS[slotDraft.weekday - 1]}, ${slotDraft.lessonNumber}. hodina`) : ''}>
+      <Modal open={!!slotDraft} onClose={() => setSlotDraft(null)} title={slotDraft ? (slotDraft.kind === 'dozor' ? `Dozor – ${WEEKDAYS[slotDraft.weekday - 1]}, ${isDuringLesson(slotDraft) ? `během ${slotDraft.lessonNumber}. hodiny (${lessonRange(slotDraft.lessonNumber)})` : `přestávka před ${slotDraft.lessonNumber}. hodinou (${breakRange(slotDraft.lessonNumber)})`}` : `${slotDraft.kind === 'krouzek' ? 'Kroužek' : 'Pravidelná hodina'} – ${WEEKDAYS[slotDraft.weekday - 1]}, ${slotDraft.lessonNumber}. hodina`) : ''}>
         {slotDraft && slotDraft.kind === 'dozor' && (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <Field label="Den"><select className="input" value={slotDraft.weekday} onChange={(e) => setSlotDraft({ ...slotDraft, weekday: Number(e.target.value) })}>{WEEKDAYS.map((w, i) => <option key={w} value={i + 1}>{w}</option>)}</select></Field>
-              <Field label="Přestávka"><select className="input" value={slotDraft.lessonNumber} onChange={(e) => setSlotDraft({ ...slotDraft, lessonNumber: Number(e.target.value) })}>{LESSON_NUMBERS.map((l) => <option key={l} value={l}>před {l}. h ({breakRange(l)})</option>)}</select></Field>
+              <Field label="Kdy"><select className="input" value={`${isDuringLesson(slotDraft) ? 'l' : 'b'}${slotDraft.lessonNumber}`} onChange={(e) => { const v = e.target.value; setSlotDraft({ ...slotDraft, lessonNumber: Number(v.slice(1)), duringLesson: v.startsWith('l') }) }}>
+                <optgroup label="O přestávce">{LESSON_NUMBERS.map((l) => <option key={`b${l}`} value={`b${l}`}>před {l}. h ({breakRange(l)})</option>)}</optgroup>
+                <optgroup label="Během hodiny (polední pauza)">{LESSON_NUMBERS.map((l) => <option key={`l${l}`} value={`l${l}`}>{l}. hodina ({lessonRange(l)})</option>)}</optgroup>
+              </select></Field>
             </div>
             <Field label="Místo (chodba, patro, jídelna…)"><input className="input" autoFocus value={slotDraft.room ?? ''} onChange={(e) => setSlotDraft({ ...slotDraft, room: e.target.value })} placeholder="např. 3. patro" onKeyDown={(e) => e.key === 'Enter' && saveSlot()} /></Field>
             <Field label="Popis (nepovinné)"><input className="input" value={slotDraft.title ?? ''} onChange={(e) => setSlotDraft({ ...slotDraft, title: e.target.value })} placeholder="např. Polední pauza" /></Field>
@@ -203,7 +231,7 @@ export function TimetablePage() {
               <Field label="Vlastní čas od (nepovinné)"><input className="input" value={slotDraft.timeFrom ?? ''} onChange={(e) => setSlotDraft({ ...slotDraft, timeFrom: e.target.value || undefined })} placeholder="např. 12:25" /></Field>
               <Field label="do"><input className="input" value={slotDraft.timeTo ?? ''} onChange={(e) => setSlotDraft({ ...slotDraft, timeTo: e.target.value || undefined })} placeholder="např. 13:20" /></Field>
             </div>
-            <p className="text-xs text-slate-500">Bez vlastního času platí standardní přestávka. Dozor se zobrazí v rozvrhu nad políčkem hodiny a na přehledu dne.</p>
+            <p className="text-xs text-slate-500">Bez vlastního času platí standardní přestávka, resp. čas hodiny. Dozor o přestávce se zobrazí v úzkém sloupci mezi hodinami, dozor během hodiny jako políčko hodiny.</p>
             <div className="flex justify-between">
               {slotDraft.id ? <ConfirmButton onConfirm={async () => { await db.timetable.delete(slotDraft.id!); setSlotDraft(null) }}>Smazat dozor</ConfirmButton> : <span />}
               <div className="flex gap-2"><button className="btn-secondary" onClick={() => setSlotDraft(null)}>Zrušit</button><button className="btn-primary" onClick={saveSlot}>Uložit</button></div>
