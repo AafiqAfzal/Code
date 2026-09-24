@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { addDays, addWeeks, format, startOfWeek } from 'date-fns'
-import { Check, ChevronLeft, ChevronRight, Eye, FileJson, Sparkles } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Eye, FileJson, Sparkles, X } from 'lucide-react'
 import { db, type ChangeKind, type TimetableChange, type TimetableSlot } from '../db/schema'
 import { useClasses, useGroups, useMyGroups, useSettings, useSubjects } from '../components/hooks'
 import { ConfirmButton, Field, Modal, PageHeader } from '../components/ui'
@@ -72,7 +72,7 @@ export function TimetablePage() {
 
   return (
     <div>
-      <PageHeader title="Rozvrh" subtitle="Klikněte na políčko: pravidelná hodina, kroužek, dozor o přestávce, odpadnutí nebo suplování v daný den" actions={
+      <PageHeader title="Rozvrh" subtitle="Klikněte na políčko hodiny: zapsat, tento den odpadá, suplování, úprava. Křížek v rohu políčka = hodina ten den odpadá." actions={
         <div className="flex flex-wrap gap-2">
           <label className="btn-secondary"><FileJson size={16} /> Nahrát rozvrh (JSON)
             <input type="file" accept=".json" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (!confirm('Nahrání přepíše současný pravidelný rozvrh (dozory zůstanou). Pokračovat?')) { e.target.value = ''; return } try { const n = await importTimetableFile(await readJsonFile<TimetableFile>(f)); setMsg(`Nahráno ${n} hodin.`) } catch (err) { setMsg((err as Error).message) } e.target.value = '' }} />
@@ -128,7 +128,11 @@ export function TimetablePage() {
                         ))}
                         {breakShown(l) && breakDuties.length === 0 && <button onClick={() => setSlotDraft(newSlot(weekday, l, 'dozor'))} title={`Přidat dozor ${breakRange(l)}`} className={`h-16 w-full rounded border border-dashed border-slate-200 hover:bg-slate-50 ${faded}`} />}
                       </td>,
-                      <td key={l} className="p-0.5 align-top">
+                      <td key={l} className="group/cell relative p-0.5 align-top">
+                        {e && e.status === 'regular' && !holiday && !vacation && (
+                          <button onClick={(ev) => { ev.stopPropagation(); setChangeDraft(newChange(date, 'odpada', l)) }} title={`Hodina ${fmtDate(date, 'd. M.')} odpadá (jen tento den)`}
+                            className="absolute right-1 top-1 z-10 hidden h-4 w-4 items-center justify-center rounded bg-white/90 text-red-700 shadow group-hover/cell:flex no-print"><X size={11} /></button>
+                        )}
                         {lessonDuty && !e ? (
                           <button onClick={() => setSlotDraft({ ...lessonDuty.slot! })} title={`Dozor ${dutyTime(lessonDuty)} · ${lessonDuty.room ?? ''}`}
                             className={`h-16 w-full rounded border border-teal-300 bg-teal-100 text-xs text-teal-900 ${lessonDuty.status === 'cancelled' ? 'line-through opacity-50' : ''} ${faded}`}>
@@ -185,8 +189,9 @@ export function TimetablePage() {
             {pick.entry && pick.entry.status === 'regular' && (
               <>
                 <p className="text-slate-600">Pravidelně: <b>{pick.entry.kind === 'krouzek' ? pick.entry.title : sAbbr(pick.entry.subjectId)}</b> {gName(pick.entry)}</p>
-                <button className="btn-secondary w-full justify-start" onClick={() => { setChangeDraft(newChange(pick.date, 'odpada', pick.lessonNumber)); setPick(null) }}>Tento den odpadá</button>
-                <button className="btn-secondary w-full justify-start" onClick={() => { setSlotDraft({ ...pick.entry!.slot! }); setPick(null) }}>Upravit pravidelnou hodinu (každý týden)</button>
+                <button className="btn-secondary w-full justify-start border-red-200 text-red-700" onClick={() => { setChangeDraft(newChange(pick.date, 'odpada', pick.lessonNumber)); setPick(null) }}><X size={14} /> Tato hodina {fmtDate(pick.date, 'd. M.')} odpadá (jen tento den)</button>
+                <div className="text-[11px] uppercase tracking-wide text-slate-400 pt-1">Pravidelný rozvrh (každý týden)</div>
+                <button className="btn-secondary w-full justify-start" onClick={() => { setSlotDraft({ ...pick.entry!.slot! }); setPick(null) }}>Upravit pravidelnou hodinu</button>
                 <ConfirmButton className="btn-secondary w-full justify-start text-red-700" confirmLabel="Opravdu odebrat z každého týdne?" onConfirm={async () => { await db.timetable.delete(pick.entry!.slot!.id); setPick(null) }}>Odebrat z pravidelného rozvrhu</ConfirmButton>
               </>
             )}
