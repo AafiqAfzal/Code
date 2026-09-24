@@ -1,6 +1,6 @@
 # Změny
 
-## Nevydáno
+## 3.0.4
 
 - Suplování: volba „Jiný předmět…“ s ručním zadáním názvu (Matematika, Tělesná výchova…), nabídka běžných předmětů
 - Rozvrh: odpadnutí jednotlivé hodiny je na první pohled – křížek v rohu políčka po najetí myší a zvýrazněná volba „Tato hodina odpadá (jen tento den)“ v nabídce políčka
