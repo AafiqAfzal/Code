@@ -40,8 +40,10 @@ export function scheduleForDate(date: string, slots: TimetableSlot[], changes: T
   const wholeDay = dayChanges.find((c) => c.kind === 'odpada' && c.lessonNumber == null)
   const entries: ScheduleEntry[] = []
   for (const slot of slots.filter((s) => s.weekday === weekday)) {
+    // výjimka „koná se“ ruší odpadnutí celého dne pro danou hodinu
+    const keep = wholeDay && dayChanges.some((c) => c.kind === 'konase' && c.lessonNumber === slot.lessonNumber)
     // dozor ruší jen odpadnutí celého dne, ne odpadnutí jedné hodiny
-    const cancel = wholeDay ?? (slot.kind === 'dozor' ? undefined : dayChanges.find((c) => c.kind === 'odpada' && c.lessonNumber === slot.lessonNumber))
+    const cancel = keep ? undefined : wholeDay ?? (slot.kind === 'dozor' ? undefined : dayChanges.find((c) => c.kind === 'odpada' && c.lessonNumber === slot.lessonNumber))
     entries.push({
       lessonNumber: slot.lessonNumber, status: cancel ? 'cancelled' : 'regular', slot, change: cancel, reason: cancel?.note,
       subjectId: slot.subjectId, groupId: slot.groupId, classId: slot.classId, room: slot.room, title: slot.title, kind: slot.kind === 'krouzek' ? 'krouzek' : slot.kind === 'dozor' ? 'dozor' : 'hodina',

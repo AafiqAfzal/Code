@@ -4,6 +4,7 @@
 
 - Suplování: volba „Jiný předmět…“ s ručním zadáním názvu (Matematika, Tělesná výchova…), nabídka běžných předmětů
 - Rozvrh: odpadnutí jednotlivé hodiny je na první pohled – křížek v rohu políčka po najetí myší a zvýrazněná volba „Tato hodina odpadá (jen tento den)“ v nabídce políčka
+- Rozvrh: v odpadlém dni lze jednotlivou hodinu vyjmout („Tuto hodinu přesto odučím“) a přidat hodinu navíc / suplování (i když den odpadá)
 - Kalendář: klik na den zobrazí rozvrh dne, kde lze nechat odpadnout jednotlivou hodinu (nebo celý den) a zase ji obnovit
 - Zápisy z hodin: kroužky se neváží na tematický plán (nenabízí se položky ani se nepředvyplňují)
 - Pracovní výkaz: pracovní doba po dnech Po–Pá (od–do) a přestávka na oběd (výchozí 30 min), odpracováno = přítomnost minus oběd

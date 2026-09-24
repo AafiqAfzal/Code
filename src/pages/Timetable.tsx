@@ -56,6 +56,8 @@ export function TimetablePage() {
     setChangeDraft(null)
   }
   const newSlot = (weekday: number, lessonNumber: number, kind: 'hodina' | 'krouzek' | 'dozor' = 'hodina'): SlotDraft => kind === 'dozor' ? { weekday, lessonNumber, kind, room: '' } : { weekday, lessonNumber, subjectId: subjects[0]?.id, kind, title: kind === 'krouzek' ? 'Kroužek' : undefined }
+  const keepChange = (date: string, lessonNumber: number) => changes.find((c) => c.date === date && c.kind === 'konase' && c.lessonNumber === lessonNumber)
+  const wholeDayOf = (date: string) => changes.find((c) => c.date === date && c.kind === 'odpada' && c.lessonNumber == null)
   const dutyTime = (e: ScheduleEntry) => e.timeFrom && e.timeTo ? `${e.timeFrom}–${e.timeTo}` : breakRange(e.lessonNumber)
   const isLessonDuty = (e: ScheduleEntry) => e.kind === 'dozor' && !!e.slot && isDuringLesson(e.slot)
   // sloupec přestávky se zobrazí jen tam, kde v týdnu nějaký dozor je
@@ -189,7 +191,9 @@ export function TimetablePage() {
             {pick.entry && pick.entry.status === 'regular' && (
               <>
                 <p className="text-slate-600">Pravidelně: <b>{pick.entry.kind === 'krouzek' ? pick.entry.title : sAbbr(pick.entry.subjectId)}</b> {gName(pick.entry)}</p>
-                <button className="btn-secondary w-full justify-start border-red-200 text-red-700" onClick={() => { setChangeDraft(newChange(pick.date, 'odpada', pick.lessonNumber)); setPick(null) }}><X size={14} /> Tato hodina {fmtDate(pick.date, 'd. M.')} odpadá (jen tento den)</button>
+                {keepChange(pick.date, pick.lessonNumber)
+                  ? <button className="btn-secondary w-full justify-start border-red-200 text-red-700" onClick={async () => { await db.timetableChanges.delete(keepChange(pick.date, pick.lessonNumber)!.id); setPick(null) }}><X size={14} /> Přece jen odpadá (zrušit výjimku z odpadlého dne)</button>
+                  : <button className="btn-secondary w-full justify-start border-red-200 text-red-700" onClick={() => { setChangeDraft(newChange(pick.date, 'odpada', pick.lessonNumber)); setPick(null) }}><X size={14} /> Tato hodina {fmtDate(pick.date, 'd. M.')} odpadá (jen tento den)</button>}
                 <div className="text-[11px] uppercase tracking-wide text-slate-400 pt-1">Pravidelný rozvrh (každý týden)</div>
                 <button className="btn-secondary w-full justify-start" onClick={() => { setSlotDraft({ ...pick.entry!.slot! }); setPick(null) }}>Upravit pravidelnou hodinu</button>
                 <ConfirmButton className="btn-secondary w-full justify-start text-red-700" confirmLabel="Opravdu odebrat z každého týdne?" onConfirm={async () => { await db.timetable.delete(pick.entry!.slot!.id); setPick(null) }}>Odebrat z pravidelného rozvrhu</ConfirmButton>
@@ -198,7 +202,12 @@ export function TimetablePage() {
             {pick.entry && pick.entry.status === 'cancelled' && (
               <>
                 <p className="text-slate-600">Hodina tento den odpadá{pick.entry.reason ? ` (${pick.entry.reason})` : ''}.</p>
-                {pick.entry.change?.lessonNumber != null ? <button className="btn-primary w-full justify-start" onClick={async () => { await db.timetableChanges.delete(pick.entry!.change!.id); setPick(null) }}>Obnovit hodinu</button> : <p className="text-xs text-slate-500">Odpadá celý den – obnovte jej tlačítkem „Obnovit den“ v řádku.</p>}
+                {pick.entry.change?.lessonNumber != null
+                  ? <button className="btn-primary w-full justify-start" onClick={async () => { await db.timetableChanges.delete(pick.entry!.change!.id); setPick(null) }}>Obnovit hodinu</button>
+                  : <>
+                      <button className="btn-primary w-full justify-start" onClick={async () => { await db.timetableChanges.add({ date: pick.date, kind: 'konase', lessonNumber: pick.lessonNumber, note: 'výjimka z odpadlého dne' }); setPick(null) }}><Check size={14} /> Tuto hodinu přesto odučím (výjimka z odpadlého dne)</button>
+                      <p className="text-xs text-slate-500">Celý den obnovíte tlačítkem „Obnovit den“ v řádku.</p>
+                    </>}
               </>
             )}
             {pick.entry && pick.entry.status === 'substitution' && (
@@ -209,7 +218,7 @@ export function TimetablePage() {
               </>
             )}
             <div className="border-t border-slate-200 pt-2 space-y-2">
-              <button className="btn-secondary w-full justify-start" onClick={() => { setChangeDraft(newChange(pick.date, 'suplovani', pick.lessonNumber)); setPick(null) }}>Přidat suplování jen {fmtDate(pick.date, 'd. M.')}</button>
+              <button className="btn-secondary w-full justify-start" onClick={() => { setChangeDraft(newChange(pick.date, 'suplovani', pick.lessonNumber)); setPick(null) }}>Přidat suplování / hodinu navíc jen {fmtDate(pick.date, 'd. M.')}{wholeDayOf(pick.date) ? ' (i když den odpadá)' : ''}</button>
               {!pick.entry && (
                 <>
                   <button className="btn-secondary w-full justify-start" onClick={() => { setSlotDraft(newSlot(days.findIndex((d) => d.date === pick.date) + 1, pick.lessonNumber)); setPick(null) }}>Přidat pravidelnou hodinu (každý týden)</button>

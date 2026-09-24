@@ -284,7 +284,8 @@ export interface TimetableSlot {
  * Jednorázová změna rozvrhu v konkrétní den: odpadlá hodina / celý den
  * (projektový den, nepřítomnost, třída pryč) nebo suplování navíc.
  */
-export type ChangeKind = 'odpada' | 'suplovani'
+/** odpada = hodina/den odpadá, suplovani = hodina navíc jen ten den, konase = výjimka: hodina se koná i v odpadlém dni */
+export type ChangeKind = 'odpada' | 'suplovani' | 'konase'
 export interface TimetableChange {
   id: number
   date: string
