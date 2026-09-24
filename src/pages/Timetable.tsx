@@ -11,6 +11,9 @@ import { importDutiesFile, importTimetableFile, readJsonFile, type DutiesFile, t
 import { CHANGE_REASONS, isDuringLesson, scheduleForDate, type ScheduleEntry } from '../lib/schedule'
 import { holidayName, schoolHolidayName } from '../lib/holidays'
 
+/** Nabídka běžných předmětů pro suplování (lze napsat libovolný). */
+const SUBST_SUBJECTS = ['Matematika', 'Český jazyk', 'Německý jazyk', 'Dějepis', 'Přírodopis', 'Fyzika', 'Chemie', 'Občanská výchova', 'Výchova ke zdraví', 'Informatika', 'Tělesná výchova', 'Hudební výchova', 'Výtvarná výchova', 'Pracovní činnosti', 'Třídnická hodina']
+
 type SlotDraft = Omit<TimetableSlot, 'id'> & { id?: number }
 type ChangeDraft = Omit<TimetableChange, 'id'> & { id?: number }
 
@@ -37,6 +40,7 @@ export function TimetablePage() {
 
   const gName = (e: { groupId?: number; classId?: number }) => groups.find((g) => g.id === e.groupId)?.name ?? classes.find((c) => c.id === e.classId)?.name ?? ''
   const sAbbr = (id?: number) => subjects.find((s) => s.id === id)?.abbreviation ?? ''
+  const substSubject = (e: ScheduleEntry) => e.change?.title?.trim() || sAbbr(e.subjectId) || '—'
   const gColor = (id?: number) => groups.find((g) => g.id === id)?.color
 
   const saveSlot = async () => {
@@ -56,7 +60,7 @@ export function TimetablePage() {
   const isLessonDuty = (e: ScheduleEntry) => e.kind === 'dozor' && !!e.slot && isDuringLesson(e.slot)
   // sloupec přestávky se zobrazí jen tam, kde v týdnu nějaký dozor je
   const breakShown = (l: number) => slots.some((s) => s.kind === 'dozor' && s.lessonNumber === l && !isDuringLesson(s))
-  const newChange = (date: string, kind: ChangeKind, lessonNumber?: number): ChangeDraft => ({ date, kind, lessonNumber, subjectId: kind === 'suplovani' ? subjects[0]?.id : undefined, note: kind === 'odpada' ? CHANGE_REASONS[0] : '' })
+  const newChange = (date: string, kind: ChangeKind, lessonNumber?: number): ChangeDraft => ({ date, kind, lessonNumber, subjectId: undefined, note: kind === 'odpada' ? CHANGE_REASONS[0] : '' })
 
   const cellClass = (e?: ScheduleEntry) => {
     if (!e) return 'border-dashed border-slate-200 hover:bg-slate-50'
@@ -138,8 +142,8 @@ export function TimetablePage() {
                           title={e?.reason ? `Odpadá: ${e.reason}` : e?.change?.note}>
                           {e && (
                             <>
-                              <div className="font-bold">{e.kind === 'krouzek' ? (e.title || 'Kroužek') : e.status === 'substitution' ? `Supl. ${sAbbr(e.subjectId)}` : sAbbr(e.subjectId)}</div>
-                              <div className="truncate px-1">{gName(e) || e.title || ''}</div>
+                              <div className="font-bold">{e.kind === 'krouzek' ? (e.title || 'Kroužek') : e.status === 'substitution' ? `Supl. ${substSubject(e)}` : sAbbr(e.subjectId)}</div>
+                              <div className="truncate px-1">{gName(e) || (e.kind === 'suplovani' ? '' : e.title) || ''}</div>
                               {e.room && <div className="opacity-80">uč. {e.room}</div>}
                               {logFor(date, e) && e.status !== 'cancelled' && <div className="mt-0.5 inline-flex items-center gap-0.5 rounded bg-white/80 px-1 text-[10px] text-green-700" title={logFor(date, e)!.topic}><Check size={10} /> zapsáno</div>}
                               {es.length > 1 && <div className="text-[10px] text-amber-700 no-underline">+ supl.</div>}
@@ -194,7 +198,7 @@ export function TimetablePage() {
             )}
             {pick.entry && pick.entry.status === 'substitution' && (
               <>
-                <p className="text-slate-600">Suplování: <b>{sAbbr(pick.entry.subjectId)}</b> {gName(pick.entry)}{pick.entry.change?.note ? ` · ${pick.entry.change.note}` : ''}</p>
+                <p className="text-slate-600">Suplování: <b>{substSubject(pick.entry)}</b> {gName(pick.entry)}{pick.entry.change?.note ? ` · ${pick.entry.change.note}` : ''}</p>
                 <button className="btn-secondary w-full justify-start" onClick={() => { setChangeDraft({ ...pick.entry!.change! }); setPick(null) }}>Upravit suplování</button>
                 <ConfirmButton className="btn-secondary w-full justify-start text-red-700" onConfirm={async () => { await db.timetableChanges.delete(pick.entry!.change!.id); setPick(null) }}>Zrušit suplování</ConfirmButton>
               </>
@@ -272,8 +276,20 @@ export function TimetablePage() {
               <>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Hodina"><select className="input" value={changeDraft.lessonNumber ?? 1} onChange={(e) => setChangeDraft({ ...changeDraft, lessonNumber: Number(e.target.value) })}>{LESSON_NUMBERS.map((l) => <option key={l} value={l}>{l}. ({lessonRange(l)})</option>)}</select></Field>
-                  <Field label="Předmět"><select className="input" value={changeDraft.subjectId ?? ''} onChange={(e) => setChangeDraft({ ...changeDraft, subjectId: Number(e.target.value) || undefined })}><option value="">—</option>{subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
+                  <Field label="Předmět">
+                    <select className="input" value={changeDraft.title != null ? 'other' : (changeDraft.subjectId ?? '')} onChange={(e) => { const v = e.target.value; setChangeDraft(v === 'other' ? { ...changeDraft, subjectId: undefined, title: '' } : { ...changeDraft, subjectId: Number(v) || undefined, title: undefined }) }}>
+                      <option value="">—</option>
+                      {subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      <option value="other">Jiný předmět…</option>
+                    </select>
+                  </Field>
                 </div>
+                {changeDraft.title != null && (
+                  <Field label="Název předmětu (suplovaného)">
+                    <input className="input" list="subst-subjects" autoFocus value={changeDraft.title} onChange={(e) => setChangeDraft({ ...changeDraft, title: e.target.value })} placeholder="např. Matematika, Český jazyk, Tělesná výchova" />
+                    <datalist id="subst-subjects">{SUBST_SUBJECTS.map((s) => <option key={s} value={s} />)}</datalist>
+                  </Field>
+                )}
                 <Field label="Třída / skupina">
                   <select className="input" value={changeDraft.groupId ? `g${changeDraft.groupId}` : changeDraft.classId ? `c${changeDraft.classId}` : ''} onChange={(e) => { const v = e.target.value; setChangeDraft({ ...changeDraft, groupId: v.startsWith('g') ? Number(v.slice(1)) : undefined, classId: v.startsWith('c') ? Number(v.slice(1)) : undefined }) }}>
                     <option value="">—</option>

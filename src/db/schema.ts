@@ -290,6 +290,7 @@ export interface TimetableChange {
   groupId?: number
   classId?: number
   room?: string
+  /** u suplování: název předmětu, který není v seznamu mých předmětů (např. „Matematika“); má přednost před subjectId */
   title?: string
   note?: string
 }

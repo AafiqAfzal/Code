@@ -1,5 +1,9 @@
 # Změny
 
+## Nevydáno
+
+- Suplování: volba „Jiný předmět…“ s ručním zadáním názvu (Matematika, Tělesná výchova…), nabídka běžných předmětů
+
 ## 3.0.3
 
 - Rozvrh: dozory o přestávkách v úzkých sloupcích mezi hodinami, dozor během hodiny (polední pauza) jako políčko hodiny

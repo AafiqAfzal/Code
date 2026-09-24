@@ -131,7 +131,7 @@ export function Dashboard() {
                 ) : (
                   <li key={i} className={`flex items-center gap-3 py-2 text-sm ${s.status === 'cancelled' ? 'opacity-60' : ''}`}>
                     <span className="w-28 text-slate-500">{s.lessonNumber}. h <span className="text-xs">{lessonRange(s.lessonNumber)}</span></span>
-                    <Badge className={s.kind === 'krouzek' ? 'bg-purple-100 text-purple-800' : s.status === 'substitution' ? 'bg-amber-100 text-amber-900' : 'bg-blue-100 text-blue-800'}>{s.kind === 'krouzek' ? 'Kroužek' : s.status === 'substitution' ? `Supl. ${subjectName(s.subjectId) ?? ''}` : subjectName(s.subjectId)}</Badge>
+                    <Badge className={s.kind === 'krouzek' ? 'bg-purple-100 text-purple-800' : s.status === 'substitution' ? 'bg-amber-100 text-amber-900' : 'bg-blue-100 text-blue-800'}>{s.kind === 'krouzek' ? 'Kroužek' : s.status === 'substitution' ? `Supl. ${s.change?.title?.trim() || subjectName(s.subjectId) || ''}` : subjectName(s.subjectId)}</Badge>
                     <span className={`font-medium ${s.status === 'cancelled' ? 'line-through' : ''}`}>{s.kind === 'krouzek' ? s.title : groupName(s.groupId) ?? className(s.classId) ?? s.title ?? ''}</span>
                     {s.room && <span className="text-slate-400">uč. {s.room}</span>}
                     {s.status === 'cancelled' && <span className="text-xs text-red-700">odpadá{s.reason ? `: ${s.reason}` : ''}</span>}
