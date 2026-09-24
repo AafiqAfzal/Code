@@ -1,13 +1,13 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
 import { addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, getISODay, isSameMonth, parseISO, startOfMonth, startOfWeek } from 'date-fns'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { db, type CalendarEvent, type EventKind } from '../db/schema'
 import { useClasses, useGroups, useSubjects } from '../components/hooks'
 import { Badge, ConfirmButton, Field, Modal, PageHeader } from '../components/ui'
-import { EVENT_KINDS, WEEKDAYS_SHORT, fmtDate, todayISO } from '../lib/format'
-import { activeLessons, scheduleForDate } from '../lib/schedule'
+import { EVENT_KINDS, WEEKDAYS_SHORT, fmtDate, lessonRange, todayISO } from '../lib/format'
+import { CHANGE_REASONS, activeLessons, scheduleForDate } from '../lib/schedule'
 import { holidayName, schoolHolidayName } from '../lib/holidays'
 
 type Draft = Omit<CalendarEvent, 'id'> & { id?: number }
@@ -16,7 +16,9 @@ const emptyDraft = (date: string): Draft => ({ title: '', kind: 'test', date, do
 export function CalendarPage() {
   const [params] = useSearchParams()
   const [month, setMonth] = useState(startOfMonth(params.get('date') ? parseISO(params.get('date')!) : new Date()))
-  useEffect(() => { const d = params.get('date'); if (d) setMonth(startOfMonth(parseISO(d))) }, [params])
+  useEffect(() => { const d = params.get('date'); if (d) { setMonth(startOfMonth(parseISO(d))); setSelected(d) } }, [params])
+  const [selected, setSelected] = useState<string>(params.get('date') || todayISO())
+  const [reason, setReason] = useState(CHANGE_REASONS[0])
   const [draft, setDraft] = useState<Draft | null>(null)
   const [filter, setFilter] = useState<EventKind | ''>('')
   const groups = useGroups()
@@ -40,6 +42,12 @@ export function CalendarPage() {
     else await db.events.add(data)
     setDraft(null)
   }
+  const unitName = (e: { groupId?: number; classId?: number }) => groups.find((g) => g.id === e.groupId)?.name ?? classes.find((c) => c.id === e.classId)?.name ?? ''
+  const subjAbbr = (id?: number) => subjects.find((s) => s.id === id)?.abbreviation ?? ''
+  const dayChanges = useLiveQuery(() => db.timetableChanges.where('date').equals(selected).toArray(), [selected]) ?? []
+  const daySchedule = scheduleForDate(selected, slots, dayChanges)
+  const selectedWholeDay = dayChanges.find((c) => c.kind === 'odpada' && c.lessonNumber == null)
+  const cancelLesson = (lessonNumber: number) => db.timetableChanges.add({ date: selected, kind: 'odpada', lessonNumber, note: reason })
   const contextName = (e: CalendarEvent) => groups.find((g) => g.id === e.groupId)?.name ?? classes.find((c) => c.id === e.classId)?.name ?? ''
 
   return (
@@ -81,8 +89,8 @@ export function CalendarPage() {
               const weekend = wd >= 6
               const dayBg = holiday ? 'bg-rose-50' : vacation ? 'bg-emerald-50' : weekend ? 'bg-amber-50/70' : ''
               return (
-                <div key={iso} className={`min-h-24 border-b border-r border-slate-100 p-1 text-xs ${isSameMonth(d, month) ? dayBg : 'bg-slate-50 text-slate-400'} ${iso === today ? 'ring-2 ring-inset ring-blue-400' : ''}`}
-                  onDoubleClick={() => setDraft(emptyDraft(iso))}>
+                <div key={iso} className={`min-h-24 cursor-pointer border-b border-r border-slate-100 p-1 text-xs ${isSameMonth(d, month) ? dayBg : 'bg-slate-50 text-slate-400'} ${iso === today ? 'ring-2 ring-inset ring-blue-400' : ''} ${iso === selected ? 'outline outline-2 -outline-offset-2 outline-slate-500' : ''}`}
+                  onClick={() => setSelected(iso)} onDoubleClick={() => setDraft(emptyDraft(iso))}>
                   <div className="flex justify-between">
                     <span className={`font-semibold ${iso === today ? 'text-blue-700' : holiday ? 'text-rose-700' : weekend && isSameMonth(d, month) ? 'text-amber-700' : ''}`}>{d.getDate()}</span>
                     {wd <= 5 && !holiday && !vacation && (lessons > 0 || cancelled > 0) && <span className="text-slate-400" title={`${lessons} hodin${cancelled ? `, ${cancelled} odpadá` : ''}${subst ? `, ${subst} suplování` : ''}`}>{lessons} h{cancelled ? <span className="text-red-500"> −{cancelled}</span> : ''}{subst ? <span className="text-amber-600"> +{subst}</span> : ''}</span>}
@@ -100,7 +108,44 @@ export function CalendarPage() {
               )
             })}
           </div>
-          <div className="px-4 py-2 text-xs text-slate-400 flex flex-wrap gap-3"><span>Dvojklik na den = nová událost.</span><span><span className="inline-block h-3 w-3 rounded bg-amber-50 border border-amber-200 align-middle" /> víkend</span><span><span className="inline-block h-3 w-3 rounded bg-rose-100 border border-rose-200 align-middle" /> státní svátek</span><span><span className="inline-block h-3 w-3 rounded bg-emerald-100 border border-emerald-200 align-middle" /> prázdniny</span></div>
+          <div className="px-4 py-2 text-xs text-slate-400 flex flex-wrap gap-3"><span>Klik na den = rozvrh dne vpravo (odpadnutí hodin), dvojklik = nová událost.</span><span><span className="inline-block h-3 w-3 rounded bg-amber-50 border border-amber-200 align-middle" /> víkend</span><span><span className="inline-block h-3 w-3 rounded bg-rose-100 border border-rose-200 align-middle" /> státní svátek</span><span><span className="inline-block h-3 w-3 rounded bg-emerald-100 border border-emerald-200 align-middle" /> prázdniny</span></div>
+        </div>
+        <div className="space-y-4">
+        <div className="card">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+            <div className="font-semibold">{fmtDate(selected, 'EEEE d. M.')}</div>
+            <Link to="/rozvrh" className="text-xs text-blue-700 hover:underline">Rozvrh</Link>
+          </div>
+          <div className="p-3 text-sm">
+            {holidayName(selected) ? <p className="text-rose-700">Státní svátek: {holidayName(selected)}</p>
+            : schoolHolidayName(selected, schoolHolidays) ? <p className="text-emerald-700">{schoolHolidayName(selected, schoolHolidays)}</p>
+            : getISODay(parseISO(selected)) >= 6 ? <p className="text-slate-500">Víkend.</p>
+            : daySchedule.length === 0 ? <p className="text-slate-500">Žádná hodina v rozvrhu.</p> : (
+              <>
+                {selectedWholeDay && <p className="mb-2 rounded bg-red-50 border border-red-200 p-2 text-xs text-red-800">Celý den odpadá{selectedWholeDay.note ? `: ${selectedWholeDay.note}` : ''}.</p>}
+                <ul className="divide-y divide-slate-100">
+                  {daySchedule.map((e, i) => (
+                    <li key={i} className={`flex items-center gap-2 py-1.5 ${e.status === 'cancelled' ? 'text-slate-400' : ''}`}>
+                      <span className="w-24 shrink-0 text-xs text-slate-500">{e.kind === 'dozor' ? `${e.timeFrom}–${e.timeTo}` : <>{e.lessonNumber}. h <span className="text-[10px]">{lessonRange(e.lessonNumber)}</span></>}</span>
+                      <span className={`min-w-0 flex-1 truncate ${e.status === 'cancelled' ? 'line-through' : 'font-medium'}`}>
+                        {e.kind === 'dozor' ? `Dozor · ${e.room ?? ''}` : e.kind === 'krouzek' ? (e.title || 'Kroužek') : e.status === 'substitution' ? `Supl. ${e.change?.title || subjAbbr(e.subjectId)}` : subjAbbr(e.subjectId)} {e.kind !== 'dozor' && unitName(e)}
+                        {e.status === 'cancelled' && e.reason && <span className="ml-1 text-[10px] no-underline">({e.reason})</span>}
+                      </span>
+                      {e.status === 'regular' && e.kind !== 'dozor' && !selectedWholeDay && <button className="btn-ghost btn-sm text-red-700 text-xs" onClick={() => cancelLesson(e.lessonNumber)}>odpadá</button>}
+                      {e.status === 'cancelled' && e.change?.lessonNumber != null && <button className="btn-ghost btn-sm text-xs" onClick={() => db.timetableChanges.delete(e.change!.id)}>obnovit</button>}
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-slate-500">Důvod:</span>
+                  <select className="input w-auto px-1 py-0.5 text-xs" value={reason} onChange={(e) => setReason(e.target.value)}>{CHANGE_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}</select>
+                  {selectedWholeDay
+                    ? <button className="btn-secondary btn-sm ml-auto" onClick={() => db.timetableChanges.delete(selectedWholeDay.id)}>Obnovit den</button>
+                    : <button className="btn-ghost btn-sm ml-auto text-red-700" onClick={() => db.timetableChanges.add({ date: selected, kind: 'odpada', note: reason })}>Celý den odpadá</button>}
+                </div>
+              </>
+            )}
+          </div>
         </div>
         <div className="card">
           <div className="px-4 py-3 border-b border-slate-200 font-semibold">Nadcházející</div>
@@ -116,6 +161,7 @@ export function CalendarPage() {
               </li>
             ))}
           </ul>
+        </div>
         </div>
       </div>
 

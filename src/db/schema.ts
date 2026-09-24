@@ -24,8 +24,13 @@ export interface Settings {
   epdPosition?: string
   epdPersonalNumber?: string
   epdWorkload?: string
+  /** Výchozí začátek a délka (starší nastavení; použije se, pokud není epdWeekdays) */
   epdStartTime?: string
   epdDailyHours?: number
+  /** Pracovní doba po dnech Po–Pá: přítomnost od–do; odpracováno = rozdíl − přestávka na oběd */
+  epdWeekdays?: { start: string; end: string }[]
+  /** Přestávka na oběd v minutách (nepočítá se do odpracované doby), výchozí 30 */
+  epdLunchMinutes?: number
   /** Kód pro dny školních prázdnin (Sa / D / prázdné) */
   epdVacationCode?: string
 }

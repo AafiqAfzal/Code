@@ -61,6 +61,8 @@ export function LessonLogsPage() {
   }
   const relevantPlanItems = (d: Draft) => {
     const g = groups.find((x) => x.id === d.groupId)
+    // kroužek (skupina napříč ročníky) tematický plán nemá
+    if (g && g.gradeLevel === 0) return []
     const cls = classes.find((x) => x.id === d.classId)
     const grade = g?.gradeLevel ?? cls?.gradeLevel
     const relPlans = plans.filter((p) => (!p.subjectId || p.subjectId === d.subjectId) && (!p.gradeLevel || !grade || p.gradeLevel === grade) && (!p.groupId || p.groupId === d.groupId))

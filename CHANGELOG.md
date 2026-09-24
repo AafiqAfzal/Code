@@ -3,6 +3,9 @@
 ## Nevydáno
 
 - Suplování: volba „Jiný předmět…“ s ručním zadáním názvu (Matematika, Tělesná výchova…), nabídka běžných předmětů
+- Kalendář: klik na den zobrazí rozvrh dne, kde lze nechat odpadnout jednotlivou hodinu (nebo celý den) a zase ji obnovit
+- Zápisy z hodin: kroužky se neváží na tematický plán (nenabízí se položky ani se nepředvyplňují)
+- Pracovní výkaz: pracovní doba po dnech Po–Pá (od–do) a přestávka na oběd (výchozí 30 min), odpracováno = přítomnost minus oběd
 
 ## 3.0.3
 

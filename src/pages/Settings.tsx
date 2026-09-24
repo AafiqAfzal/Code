@@ -7,11 +7,12 @@ import { useCategories, useScale, useSettings, useSubjects } from '../components
 import { ConfirmButton, Field, PageHeader, Toast, useToast } from '../components/ui'
 import { downloadBlob, exportBackup, importBackup, wipeAll } from '../lib/backup'
 import { isDesktop, runDailyAutoBackupForce, saveBackupAs } from '../lib/desktop'
+import { DEFAULT_LUNCH_MINUTES, workdaySpan } from '../lib/workReport'
 import { PIN_RE, clearPin, setPin, verifyPin } from '../lib/pin'
 import { NewYearWizard } from '../components/NewYearWizard'
 import { SettingsTabs } from '../components/Layout'
 import { NATIONAL_SCHOOL_HOLIDAYS } from '../lib/holidays'
-import { fmtDate } from '../lib/format'
+import { WEEKDAYS, fmtDate } from '../lib/format'
 
 export function SettingsPage() {
   const settings = useSettings()
@@ -169,9 +170,33 @@ export function SettingsPage() {
             <Field label="Pracovní zařazení"><input className="input" defaultValue={settings.epdPosition ?? ''} onBlur={(e) => upd({ epdPosition: e.target.value })} placeholder="učitel" /></Field>
             <Field label="Osobní číslo"><input className="input" defaultValue={settings.epdPersonalNumber ?? ''} onBlur={(e) => upd({ epdPersonalNumber: e.target.value })} /></Field>
             <Field label="Pracovní úvazek"><input className="input" defaultValue={settings.epdWorkload ?? ''} onBlur={(e) => upd({ epdWorkload: e.target.value })} placeholder="1,0" /></Field>
-            <Field label="Začátek pracovní doby"><input className="input" defaultValue={settings.epdStartTime ?? '7:30'} onBlur={(e) => upd({ epdStartTime: e.target.value })} placeholder="7:30" /></Field>
-            <Field label="Hodin denně"><input type="number" step="0.5" className="input" defaultValue={settings.epdDailyHours ?? 8} onBlur={(e) => upd({ epdDailyHours: Number(e.target.value) || 8 })} /></Field>
+            <Field label="Přestávka na oběd (min)"><input type="number" step="5" min="0" className="input" defaultValue={settings.epdLunchMinutes ?? DEFAULT_LUNCH_MINUTES} onBlur={(e) => upd({ epdLunchMinutes: Math.max(0, Number(e.target.value) || 0) })} /></Field>
             <Field label="Kód o prázdninách"><select className="input" value={settings.epdVacationCode ?? 'Sa'} onChange={(e) => upd({ epdVacationCode: e.target.value })}><option value="Sa">Sa – samostudium</option><option value="D">D – dovolená</option><option value="">nechat prázdné</option></select></Field>
+          </div>
+          <div className="mt-3">
+            <div className="mb-1 text-xs font-medium text-slate-600">Pracovní doba (přítomnost ve škole) po dnech</div>
+            <table className="table !w-auto text-sm">
+              <thead><tr><th>Den</th><th>Od</th><th>Do</th><th>Odpracováno</th></tr></thead>
+              <tbody>
+                {WEEKDAYS.map((name, i) => {
+                  const sp = workdaySpan(settings, i + 1)
+                  const setDay = (patch: Partial<{ start: string; end: string }>) => {
+                    const days = WEEKDAYS.map((_, j) => { const s = workdaySpan(settings, j + 1); return { start: s.start, end: s.end } })
+                    days[i] = { ...days[i], ...patch }
+                    upd({ epdWeekdays: days })
+                  }
+                  return (
+                    <tr key={name}>
+                      <td className="font-medium">{name}</td>
+                      <td><input className="input w-20" key={`s${i}${sp.start}`} defaultValue={sp.start} placeholder="7:30" onBlur={(e) => /^\d{1,2}:\d{2}$/.test(e.target.value) && e.target.value !== sp.start && setDay({ start: e.target.value })} /></td>
+                      <td><input className="input w-20" key={`e${i}${sp.end}`} defaultValue={sp.end} placeholder="16:00" onBlur={(e) => /^\d{1,2}:\d{2}$/.test(e.target.value) && e.target.value !== sp.end && setDay({ end: e.target.value })} /></td>
+                      <td className="text-slate-600">{sp.hours.toLocaleString('cs-CZ')} h <span className="text-xs text-slate-400">(bez {sp.lunch} min oběda)</span></td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            <p className="mt-1 text-xs text-slate-500">Např. 7:30–16:00 = 8,5 h přítomnosti, z toho 8 h odpracováno. Ve výkazu se do sloupce „práce související“ doplní odpracované hodiny minus odučené.</p>
           </div>
         </section>
       )}

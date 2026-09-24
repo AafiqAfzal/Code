@@ -8,7 +8,7 @@ import { Field, PageHeader, Toast, useToast } from '../components/ui'
 import { SettingsTabs } from '../components/Layout'
 import { WEEKDAYS_SHORT, fmtDate } from '../lib/format'
 import { holidayName, schoolHolidayName } from '../lib/holidays'
-import { WORK_CODES, WORK_CODE_LABEL, addHours, autoFillMonth, dateOf, daysInMonth, fillTemplate, monthTotals } from '../lib/workReport'
+import { WORK_CODES, WORK_CODE_LABEL, addHours, autoFillMonth, dateOf, daysInMonth, fillTemplate, monthTotals, workdaySpan } from '../lib/workReport'
 import { downloadBlob } from '../lib/backup'
 
 const thisMonth = () => new Date().toISOString().slice(0, 7)
@@ -109,7 +109,7 @@ export function WorkReportPage() {
                       <td>{cell(d, 'direct', 'number')}</td>
                       <td>{cell(d, 'related', 'number')}</td>
                       <td>{cell(d, 'extra', 'number')}</td>
-                      <td>{cell(d, 'end', 'time', 'w-16')}<button className="ml-1 text-[10px] text-blue-700 hover:underline" title="Dopočítat konec = začátek + denní hodiny" onClick={() => day.start && setDay(d, { end: addHours(day.start, settings?.epdDailyHours ?? 8) })}>=</button></td>
+                      <td>{cell(d, 'end', 'time', 'w-16')}<button className="ml-1 text-[10px] text-blue-700 hover:underline" title="Dopočítat konec = začátek + odpracované hodiny + oběd" onClick={() => { if (!day.start) return; const sp = workdaySpan(settings, new Date(dateOf(month, d)).getDay()); setDay(d, { end: addHours(day.start, ((day.direct ?? 0) + (day.related ?? 0) || sp.hours) + sp.lunch / 60) }) }}>=</button></td>
                       <td><select className="input px-1 py-0.5 text-xs w-20" value={day.code ?? ''} onChange={(e) => setDay(d, { code: e.target.value || undefined })}><option value="">—</option>{WORK_CODES.map((c) => <option key={c} value={c}>{c} – {WORK_CODE_LABEL[c]}</option>)}</select></td>
                       <td>{cell(d, 'codeNote', 'text', 'w-24')}</td>
                       <td className="text-center text-slate-600">{(day.direct ?? 0) + (day.related ?? 0) || ''}</td>
