@@ -1,6 +1,6 @@
 # Změny
 
-## Nevydáno
+## 3.0.5
 
 - Skupiny: žák je v ročníku jen v jedné skupině předmětu – přidáním do druhé skupiny (i kolegyně) se z první odebere; platí i pro opakovaný import žáků z Excelu („-“ = bez skupiny)
 - Zápis ze suplování: bez tematického plánu (nenabízí se, nepředvyplňuje se), předmět volným textem, v seznamu označen „Supl.“
