@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, type GradingScale, type Settings } from '../db/schema'
+import { db, type Group, type Student, type GradingScale, type Settings } from '../db/schema'
 import { byName } from '../lib/format'
 
 export function useSettings(): Settings | undefined {
@@ -43,4 +43,13 @@ export function useCategories() {
 }
 export function useScale(): GradingScale {
   return useLiveQuery(() => db.gradingScales.get(1), []) ?? { id: 1, name: '', thresholds: [90, 75, 50, 30], rulesText: '' }
+}
+
+/** Žáci hodiny: skupina (nebo třída) + spojené skupiny, bez duplicit, seřazení. */
+export function rosterOf(students: Student[], groups: Group[], sel: { groupId?: number; classId?: number; extraGroupIds?: number[] }): Student[] {
+  const ids = new Set<number>()
+  const g = groups.find((x) => x.id === sel.groupId)
+  if (g) g.studentIds.forEach((id) => ids.add(id))
+  for (const eid of sel.extraGroupIds ?? []) groups.find((x) => x.id === eid)?.studentIds.forEach((id) => ids.add(id))
+  return students.filter((s) => ids.has(s.id) || (!g && sel.classId != null && s.classId === sel.classId)).sort(byName)
 }

@@ -18,9 +18,11 @@ export interface ScheduleEntry {
   room?: string
   title?: string
   kind: 'hodina' | 'krouzek' | 'suplovani' | 'dozor'
-  /** u dozoru čas (standardní přestávka nebo vlastní) */
+  /** u dozoru čas (standardní přestávka nebo vlastní); u kroužku vlastní čas, pokud je nastaven */
   timeFrom?: string
   timeTo?: string
+  /** spojené skupiny (žáci navíc) */
+  extraGroupIds?: number[]
 }
 
 const mins = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
@@ -47,12 +49,13 @@ export function scheduleForDate(date: string, slots: TimetableSlot[], changes: T
     entries.push({
       lessonNumber: slot.lessonNumber, status: cancel ? 'cancelled' : 'regular', slot, change: cancel, reason: cancel?.note,
       subjectId: slot.subjectId, groupId: slot.groupId, classId: slot.classId, room: slot.room, title: slot.title, kind: slot.kind === 'krouzek' ? 'krouzek' : slot.kind === 'dozor' ? 'dozor' : 'hodina',
-      timeFrom: slot.kind === 'dozor' ? slot.timeFrom || BREAK_RANGES[slot.lessonNumber]?.[0] : undefined,
-      timeTo: slot.kind === 'dozor' ? slot.timeTo || BREAK_RANGES[slot.lessonNumber]?.[1] : undefined,
+      timeFrom: slot.kind === 'dozor' ? slot.timeFrom || BREAK_RANGES[slot.lessonNumber]?.[0] : slot.kind === 'krouzek' ? slot.timeFrom : undefined,
+      timeTo: slot.kind === 'dozor' ? slot.timeTo || BREAK_RANGES[slot.lessonNumber]?.[1] : slot.kind === 'krouzek' ? slot.timeTo : undefined,
+      extraGroupIds: slot.extraGroupIds,
     })
   }
   for (const c of dayChanges.filter((c) => c.kind === 'suplovani')) {
-    entries.push({ lessonNumber: c.lessonNumber ?? 0, status: 'substitution', change: c, subjectId: c.subjectId, groupId: c.groupId, classId: c.classId, room: c.room, title: c.title, kind: 'suplovani' })
+    entries.push({ lessonNumber: c.lessonNumber ?? 0, status: 'substitution', change: c, subjectId: c.subjectId, groupId: c.groupId, classId: c.classId, room: c.room, title: c.title, kind: 'suplovani', extraGroupIds: c.extraGroupIds })
   }
   // dozor před n-tou hodinou se řadí před ni
   const key = (e: ScheduleEntry) => e.lessonNumber - (e.kind === 'dozor' && !(e.slot && isDuringLesson(e.slot)) ? 0.5 : 0)

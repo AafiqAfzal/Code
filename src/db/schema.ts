@@ -201,6 +201,11 @@ export interface LessonLog {
   note?: string
   absentStudentIds: number[]
   planItemId?: number
+  /** Spojené skupiny – žáci navíc v docházce (např. obě skupiny Aj) */
+  extraGroupIds?: number[]
+  /** Suplování: bez vazby na tematický plán; subjectName = předmět mimo můj seznam */
+  kind?: 'suplovani'
+  subjectName?: string
 }
 
 /** Zasedací pořádek skupiny nebo třídy. */
@@ -278,6 +283,8 @@ export interface TimetableSlot {
   timeTo?: string
   /** U dozoru: koná se během dané hodiny (polední pauza), ne o přestávce před ní – zobrazí se jako políčko hodiny */
   duringLesson?: boolean
+  /** Spojené skupiny (např. obě skupiny Aj, když kolegyně chybí) – žáci se přidají k docházce */
+  extraGroupIds?: number[]
 }
 
 /**
@@ -299,6 +306,8 @@ export interface TimetableChange {
   /** u suplování: název předmětu, který není v seznamu mých předmětů (např. „Matematika“); má přednost před subjectId */
   title?: string
   note?: string
+  /** Spojené skupiny (žáci navíc k docházce) */
+  extraGroupIds?: number[]
 }
 
 export class DiaryDB extends Dexie {

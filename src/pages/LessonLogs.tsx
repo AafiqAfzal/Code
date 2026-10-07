@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { db, type LessonLog } from '../db/schema'
-import { useClasses, useGroups, useMyGroups, useSettings, useStudents, useSubjects, useTeachingUnits } from '../components/hooks'
+import { rosterOf, useClasses, useGroups, useMyGroups, useSettings, useStudents, useSubjects, useTeachingUnits } from '../components/hooks'
 import { Badge, ConfirmButton, Field, Modal, PageHeader } from '../components/ui'
 import { fmtDate, fullName, todayISO } from '../lib/format'
 
@@ -19,8 +19,10 @@ export function LessonLogsPage() {
   const students = useStudents()
   const [filterGroup, setFilterGroup] = useState<number | ''>('')
   const logs = useLiveQuery(() => db.lessonLogs.orderBy('date').reverse().toArray(), []) ?? []
-  const plans = useLiveQuery(() => db.plans.toArray(), []) ?? []
-  const planItems = useLiveQuery(() => db.planItems.orderBy('order').toArray(), []) ?? []
+  const plansRaw = useLiveQuery(() => db.plans.toArray(), [])
+  const planItemsRaw = useLiveQuery(() => db.planItems.orderBy('order').toArray(), [])
+  const plans = plansRaw ?? []
+  const planItems = planItemsRaw ?? []
   const [draft, setDraft] = useState<Draft | null>(null)
   const prefilledFor = useRef('')
   const units = useTeachingUnits(draft?.subjectId)
@@ -37,19 +39,29 @@ export function LessonLogsPage() {
   // Otevření z přehledu ("Zapsat hodinu")
   useEffect(() => {
     const key = params.toString()
-    if (!params.get('lesson') || prefilledFor.current === key || planItems.length === 0 && plans.length > 0) return
-    if (plans.length === 0 && planItems.length === 0) return
+    if (!params.get('lesson') || prefilledFor.current === key || !plansRaw || !planItemsRaw) return
     prefilledFor.current = key
-    const base = newDraft({ date: params.get('date') || todayISO(), subjectId: Number(params.get('subjectId')) || settings?.defaultSubjectId || subjects[0]?.id || 0, groupId: Number(params.get('groupId')) || undefined, classId: Number(params.get('classId')) || undefined, lessonNumber: Number(params.get('lesson')) || undefined })
-    // předvyplnit další neodškrtnuté téma z tematického plánu
+    const extra = (params.get('extra') ?? '').split(',').map(Number).filter(Boolean)
+    const subst = params.get('subst') === '1'
+    const base = newDraft({
+      date: params.get('date') || todayISO(), subjectId: Number(params.get('subjectId')) || settings?.defaultSubjectId || subjects[0]?.id || 0,
+      groupId: Number(params.get('groupId')) || undefined, classId: Number(params.get('classId')) || undefined, lessonNumber: Number(params.get('lesson')) || undefined,
+      extraGroupIds: extra.length ? extra : undefined, kind: subst ? 'suplovani' : undefined, subjectName: subst ? params.get('subjectName') || undefined : undefined,
+    })
+    // předvyplnit další neodškrtnuté téma z tematického plánu (ne u suplování a kroužků)
     const next = relevantPlanItems(base).find((i) => !i.done)
     setDraft(next ? { ...base, planItemId: next.id, topic: next.text } : base)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params, plans.length, planItems.length])
+  }, [params, plansRaw, planItemsRaw])
 
-  const roster = (d: Draft) => d.groupId ? students.filter((s) => groups.find((g) => g.id === d.groupId)?.studentIds.includes(s.id)) : d.classId ? students.filter((s) => s.classId === d.classId) : []
-  const groupName = (l: { groupId?: number; classId?: number }) => groups.find((g) => g.id === l.groupId)?.name ?? classes.find((c) => c.id === l.classId)?.name ?? ''
-  const visible = filterGroup ? logs.filter((l) => l.groupId === filterGroup) : logs
+  const roster = (d: Draft) => rosterOf(students, groups, d)
+  const groupName = (l: { groupId?: number; classId?: number; extraGroupIds?: number[] }) => {
+    const base = groups.find((g) => g.id === l.groupId)?.name ?? classes.find((c) => c.id === l.classId)?.name ?? ''
+    const extra = (l.extraGroupIds ?? []).map((id) => groups.find((g) => g.id === id)?.name).filter(Boolean)
+    return extra.length ? `${base} + ${extra.join(' + ')}` : base
+  }
+  const mergeable = (d: Draft) => myGroups.filter((g) => g.id !== d.groupId && (!g.subjectId || g.subjectId === d.subjectId))
+  const visible = filterGroup ? logs.filter((l) => l.groupId === filterGroup || l.extraGroupIds?.includes(filterGroup)) : logs
 
   const save = async () => {
     if (!draft || !draft.topic.trim()) return
@@ -60,6 +72,8 @@ export function LessonLogsPage() {
     setDraft(null)
   }
   const relevantPlanItems = (d: Draft) => {
+    // suplování se do tematického plánu nezapisuje
+    if (d.kind === 'suplovani') return []
     const g = groups.find((x) => x.id === d.groupId)
     // kroužek (skupina napříč ročníky) tematický plán nemá
     if (g && g.gradeLevel === 0) return []
@@ -85,7 +99,7 @@ export function LessonLogsPage() {
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="text-slate-500 w-24">{fmtDate(l.date, 'EE d. M.')}</span>
                 {l.lessonNumber && <span className="text-slate-400 text-xs">{l.lessonNumber}. h</span>}
-                <Badge className="bg-blue-100 text-blue-800">{subjects.find((s) => s.id === l.subjectId)?.abbreviation}</Badge>
+                {l.kind === 'suplovani' ? <Badge className="bg-amber-100 text-amber-900">Supl. {l.subjectName || subjects.find((s) => s.id === l.subjectId)?.abbreviation}</Badge> : <Badge className="bg-blue-100 text-blue-800">{subjects.find((s) => s.id === l.subjectId)?.abbreviation}</Badge>}
                 <span className="font-medium">{groupName(l)}</span>
                 <span className="flex-1">{l.topic}</span>
                 {l.absentStudentIds.length > 0 && <span className="text-xs text-red-600">chybí {l.absentStudentIds.length}</span>}
@@ -96,14 +110,16 @@ export function LessonLogsPage() {
         </ul>
       </div>
 
-      <Modal open={!!draft} onClose={() => setDraft(null)} title={draft?.id ? 'Upravit zápis' : 'Nový zápis z hodiny'} wide>
+      <Modal open={!!draft} onClose={() => setDraft(null)} title={draft?.kind === 'suplovani' ? `${draft.id ? 'Upravit' : 'Nový'} zápis ze suplování` : draft?.id ? 'Upravit zápis' : 'Nový zápis z hodiny'} wide>
         {draft && (
           <div className="grid gap-4 md:grid-cols-[1fr_260px]">
             <div className="space-y-3">
               <div className="grid grid-cols-4 gap-3">
                 <Field label="Datum"><input type="date" className="input" value={draft.date} onChange={(e) => setDraft({ ...draft, date: e.target.value })} /></Field>
                 <Field label="Hodina"><input type="number" min={1} max={8} className="input" value={draft.lessonNumber ?? ''} onChange={(e) => setDraft({ ...draft, lessonNumber: Number(e.target.value) || undefined })} /></Field>
-                <Field label="Předmět"><select className="input" value={draft.subjectId} onChange={(e) => setDraft({ ...draft, subjectId: Number(e.target.value), groupId: undefined, classId: undefined, absentStudentIds: [] })}>{subjects.map((s) => <option key={s.id} value={s.id}>{s.abbreviation}</option>)}</select></Field>
+                {draft.kind === 'suplovani'
+                  ? <Field label="Předmět (suplování)"><input className="input" value={draft.subjectName ?? ''} onChange={(e) => setDraft({ ...draft, subjectName: e.target.value || undefined })} placeholder={subjects.find((s) => s.id === draft.subjectId)?.name ?? 'např. Matematika'} /></Field>
+                  : <Field label="Předmět"><select className="input" value={draft.subjectId} onChange={(e) => setDraft({ ...draft, subjectId: Number(e.target.value), groupId: undefined, classId: undefined, extraGroupIds: undefined, absentStudentIds: [] })}>{subjects.map((s) => <option key={s.id} value={s.id}>{s.abbreviation}</option>)}</select></Field>}
                 <Field label="Skupina / třída">
                   <select className="input" value={draft.groupId ? `g${draft.groupId}` : draft.classId ? `c${draft.classId}` : ''} onChange={(e) => { const v = e.target.value; setDraft({ ...draft, groupId: v.startsWith('g') ? Number(v.slice(1)) : undefined, classId: v.startsWith('c') ? Number(v.slice(1)) : undefined, absentStudentIds: [] }) }}>
                     <option value="">—</option>
@@ -114,6 +130,14 @@ export function LessonLogsPage() {
                   </select>
                 </Field>
               </div>
+              {draft.groupId && mergeable(draft).length > 0 && (
+                <Field label="Spojené skupiny (žáci navíc v docházce)">
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                    {mergeable(draft).map((g) => <label key={g.id} className="flex items-center gap-1"><input type="checkbox" checked={(draft.extraGroupIds ?? []).includes(g.id)} onChange={(e) => { const cur = draft.extraGroupIds ?? []; const ids = e.target.checked ? [...cur, g.id] : cur.filter((x) => x !== g.id); setDraft({ ...draft, extraGroupIds: ids.length ? ids : undefined }) }} /> {g.name}</label>)}
+                  </div>
+                </Field>
+              )}
+              {draft.kind === 'suplovani' && <label className="flex items-center gap-2 text-xs text-slate-500"><input type="checkbox" checked onChange={() => setDraft({ ...draft, kind: undefined, subjectName: undefined })} /> Suplování – bez vazby na tematický plán (odškrtněte, pokud jde o vaši běžnou hodinu)</label>}
               <Field label="Probrané učivo">
                 <input className="input" autoFocus list="plan-topics" value={draft.topic} onChange={(e) => setDraft({ ...draft, topic: e.target.value })} placeholder="Např. Present simple – otázky" />
               </Field>

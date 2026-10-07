@@ -1,5 +1,13 @@
 # Změny
 
+## Nevydáno
+
+- Skupiny: žák je v ročníku jen v jedné skupině předmětu – přidáním do druhé skupiny (i kolegyně) se z první odebere; platí i pro opakovaný import žáků z Excelu („-“ = bez skupiny)
+- Zápis ze suplování: bez tematického plánu (nenabízí se, nepředvyplňuje se), předmět volným textem, v seznamu označen „Supl.“
+- Spojené skupiny: u suplování i pravidelné hodiny lze přidat další skupinu (např. obě skupiny Aj, když kolegyně chybí); žáci se objeví v docházce zápisu a absence se započte v docházce obou skupin
+- Kroužek: vlastní začátek a konec (zobrazí se v rozvrhu i na přehledu dne)
+- Zápis z hodiny z přehledu/rozvrhu se otevře i bez nahraných tematických plánů
+
 ## 3.0.4
 
 - Suplování: volba „Jiný předmět…“ s ručním zadáním názvu (Matematika, Tělesná výchova…), nabídka běžných předmětů

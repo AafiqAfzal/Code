@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Download } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { db } from '../db/schema'
-import { useClasses, useGroups, useSettings, useStudents, useSubjects, useTeachingUnits } from '../components/hooks'
+import { rosterOf, useClasses, useGroups, useSettings, useStudents, useSubjects, useTeachingUnits } from '../components/hooks'
 import { PageHeader } from '../components/ui'
 import { MONTHS, fmtDate, fullName, genderClass } from '../lib/format'
 
@@ -34,10 +34,11 @@ export function AttendancePage() {
   const [month, setMonth] = useState('')
   const sel = groupId ? `g${groupId}` : classId ? `c${classId}` : ''
   const group = groups.find((g) => g.id === groupId)
-  const roster = useMemo(() => group ? students.filter((s) => group.studentIds.includes(s.id)) : classId ? students.filter((s) => s.classId === classId) : [], [group, classId, students])
+  const roster = useMemo(() => rosterOf(students, groups, { groupId: group?.id, classId: group ? undefined : classId }), [group, classId, students, groups])
   const logs = useLiveQuery(async () => {
     if (!groupId && !classId) return []
-    const all = groupId ? await db.lessonLogs.where('groupId').equals(groupId).toArray() : await db.lessonLogs.where('classId').equals(classId!).toArray()
+    // i zápisy, kde je skupina připojená jako spojená (kolegyně chyběla)
+    const all = groupId ? (await db.lessonLogs.toArray()).filter((l) => l.groupId === groupId || l.extraGroupIds?.includes(groupId)) : await db.lessonLogs.where('classId').equals(classId!).toArray()
     return all.sort((a, b) => a.date.localeCompare(b.date) || (a.lessonNumber ?? 0) - (b.lessonNumber ?? 0))
   }, [groupId, classId]) ?? []
   const filtered = month ? logs.filter((l) => Number(l.date.slice(5, 7)) === MONTH_NUM[month]) : logs

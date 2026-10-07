@@ -39,8 +39,17 @@ export function ClassesPage() {
   const saveGroup = async () => {
     if (!groupDraft?.name.trim()) return
     const { id, ...data } = groupDraft
+    let savedId = id
     if (id) await db.groups.update(id, data)
-    else await db.groups.add(data)
+    else savedId = await db.groups.add(data)
+    // Žák může být v ročníku jen v jedné skupině daného předmětu (sk. 1 / sk. 2) – z ostatních ho odebrat
+    if (data.gradeLevel && data.subjectId) {
+      const siblings = (await db.groups.toArray()).filter((g) => g.id !== savedId && g.gradeLevel === data.gradeLevel && g.subjectId === data.subjectId)
+      for (const g of siblings) {
+        const rest = g.studentIds.filter((sid) => !data.studentIds.includes(sid))
+        if (rest.length !== g.studentIds.length) await db.groups.update(g.id, { studentIds: rest })
+      }
+    }
     setGroupDraft(null)
   }
   const groupsOfStudent = (id: number) => [...gradeGroups, ...crossGroups].filter((g) => g.studentIds.includes(id))
@@ -194,6 +203,7 @@ export function ClassesPage() {
               </Field>
             </div>
             <div>
+              <p className="mb-1 text-xs text-slate-500">Žák je v ročníku jen v jedné skupině předmětu – přidáním sem se z druhé skupiny (např. kolegyně) automaticky odebere.</p>
               <div className="label">Členové ({groupDraft.studentIds.length}){groupDraft.gradeLevel ? (draftClasses.length <= 1 ? ` – žáci třídy ${draftClasses[0]?.name ?? ''}` : ` – žáci ${groupDraft.gradeLevel}. ročníku`) : ' – žáci ze všech tříd'}</div>
               <div className="grid gap-x-4 sm:grid-cols-2 md:grid-cols-3 max-h-80 overflow-y-auto border border-slate-200 rounded p-2">
                 {draftClasses.map((c) => (

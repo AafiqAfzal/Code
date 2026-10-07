@@ -36,9 +36,27 @@ export function TimetablePage() {
   const today = format(new Date(), 'yyyy-MM-dd')
   const weekLogs = useLiveQuery(() => db.lessonLogs.where('date').between(days[0].date, days[4].date, true, true).toArray(), [days[0].date]) ?? []
   const logFor = (date: string, e?: ScheduleEntry) => e && weekLogs.find((l) => l.date === date && (e.groupId ? l.groupId === e.groupId : e.classId ? l.classId === e.classId : false) && (l.lessonNumber == null || l.lessonNumber === e.lessonNumber))
-  const logLesson = (date: string, e: ScheduleEntry) => navigate(`/zapisy?groupId=${e.groupId ?? ''}&classId=${e.classId ?? ''}&subjectId=${e.subjectId ?? settings?.defaultSubjectId ?? ''}&lesson=${e.lessonNumber}&date=${date}`)
+  const logLesson = (date: string, e: ScheduleEntry) => navigate(`/zapisy?groupId=${e.groupId ?? ''}&classId=${e.classId ?? ''}&subjectId=${e.subjectId ?? settings?.defaultSubjectId ?? ''}&lesson=${e.lessonNumber}&date=${date}&extra=${(e.extraGroupIds ?? []).join(',')}${e.kind === 'suplovani' ? `&subst=1&subjectName=${encodeURIComponent(e.change?.title ?? '')}` : ''}`)
 
-  const gName = (e: { groupId?: number; classId?: number }) => groups.find((g) => g.id === e.groupId)?.name ?? classes.find((c) => c.id === e.classId)?.name ?? ''
+  const gName = (e: { groupId?: number; classId?: number; extraGroupIds?: number[] }) => {
+    const base = groups.find((g) => g.id === e.groupId)?.name ?? classes.find((c) => c.id === e.classId)?.name ?? ''
+    const extra = (e.extraGroupIds ?? []).map((id) => groups.find((g) => g.id === id)?.name).filter(Boolean)
+    return extra.length ? `${base} + ${extra.join(' + ')}` : base
+  }
+  /** Skupiny, které lze spojit s vybranou (stejný předmět, jiná skupina; u jiného předmětu všechny moje) */
+  const mergeableGroups = (sel: { groupId?: number; subjectId?: number }) => myGroups.filter((g) => g.id !== sel.groupId && (!sel.subjectId || !g.subjectId || g.subjectId === sel.subjectId))
+  const MergeField = ({ value, subjectId, groupId, onChange }: { value?: number[]; subjectId?: number; groupId?: number; onChange: (ids: number[]) => void }) => {
+    const opts = mergeableGroups({ groupId, subjectId })
+    if (!groupId || opts.length === 0) return null
+    const cur = value ?? []
+    return (
+      <Field label="Spojené skupiny (žáci navíc – např. když kolegyně chybí)">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+          {opts.map((g) => <label key={g.id} className="flex items-center gap-1"><input type="checkbox" checked={cur.includes(g.id)} onChange={(e) => onChange(e.target.checked ? [...cur, g.id] : cur.filter((x) => x !== g.id))} /> {g.name}</label>)}
+        </div>
+      </Field>
+    )
+  }
   const sAbbr = (id?: number) => subjects.find((s) => s.id === id)?.abbreviation ?? ''
   const substSubject = (e: ScheduleEntry) => e.change?.title?.trim() || sAbbr(e.subjectId) || '—'
   const gColor = (id?: number) => groups.find((g) => g.id === id)?.color
@@ -149,7 +167,8 @@ export function TimetablePage() {
                           {e && (
                             <>
                               <div className="font-bold">{e.kind === 'krouzek' ? (e.title || 'Kroužek') : e.status === 'substitution' ? `Supl. ${substSubject(e)}` : sAbbr(e.subjectId)}</div>
-                              <div className="truncate px-1">{gName(e) || (e.kind === 'suplovani' ? '' : e.title) || ''}</div>
+                              {e.kind === 'krouzek' && e.timeFrom && e.timeTo && <div className="text-[10px] opacity-90">{e.timeFrom}–{e.timeTo}</div>}
+                              <div className="truncate px-1">{gName(e) || (e.kind === 'suplovani' || e.kind === 'krouzek' ? '' : e.title) || ''}</div>
                               {e.room && <div className="opacity-80">uč. {e.room}</div>}
                               {logFor(date, e) && e.status !== 'cancelled' && <div className="mt-0.5 inline-flex items-center gap-0.5 rounded bg-white/80 px-1 text-[10px] text-green-700" title={logFor(date, e)!.topic}><Check size={10} /> zapsáno</div>}
                               {es.length > 1 && <div className="text-[10px] text-amber-700 no-underline">+ supl.</div>}
@@ -272,6 +291,13 @@ export function TimetablePage() {
               {slotDraft.kind === 'krouzek' && <p className="mt-1 text-xs text-slate-500">Skupinu kroužku napříč ročníky založíte v Třídy a skupiny → „Nový kroužek“. Pak půjde zapisovat docházku i zápisy z hodin.</p>}
             </Field>
             <Field label="Učebna"><input className="input" value={slotDraft.room ?? ''} onChange={(e) => setSlotDraft({ ...slotDraft, room: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && saveSlot()} /></Field>
+            {slotDraft.kind === 'krouzek' && (
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Vlastní začátek (nepovinné)"><input className="input" value={slotDraft.timeFrom ?? ''} onChange={(e) => setSlotDraft({ ...slotDraft, timeFrom: e.target.value || undefined })} placeholder={`standardně ${lessonRange(slotDraft.lessonNumber).split('–')[0]}`} /></Field>
+                <Field label="Vlastní konec (nepovinné)"><input className="input" value={slotDraft.timeTo ?? ''} onChange={(e) => setSlotDraft({ ...slotDraft, timeTo: e.target.value || undefined })} placeholder={`standardně ${lessonRange(slotDraft.lessonNumber).split('–')[1]}`} /></Field>
+              </div>
+            )}
+            <MergeField value={slotDraft.extraGroupIds} subjectId={slotDraft.subjectId} groupId={slotDraft.groupId} onChange={(ids) => setSlotDraft({ ...slotDraft, extraGroupIds: ids.length ? ids : undefined })} />
             <div className="flex justify-end gap-2"><button className="btn-secondary" onClick={() => setSlotDraft(null)}>Zrušit</button><button className="btn-primary" onClick={saveSlot}>Uložit</button></div>
           </div>
         )}
@@ -311,6 +337,7 @@ export function TimetablePage() {
                     <optgroup label="Skupiny">{myGroups.map((g) => <option key={g.id} value={`g${g.id}`}>{g.name}</option>)}</optgroup>
                   </select>
                 </Field>
+                <MergeField value={changeDraft.extraGroupIds} subjectId={changeDraft.subjectId} groupId={changeDraft.groupId} onChange={(ids) => setChangeDraft({ ...changeDraft, extraGroupIds: ids.length ? ids : undefined })} />
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Učebna"><input className="input" value={changeDraft.room ?? ''} onChange={(e) => setChangeDraft({ ...changeDraft, room: e.target.value })} /></Field>
                   <Field label="Poznámka (za koho, téma…)"><input className="input" value={changeDraft.note ?? ''} onChange={(e) => setChangeDraft({ ...changeDraft, note: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && saveChange()} /></Field>

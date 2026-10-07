@@ -60,7 +60,7 @@ function ExcelImport() {
   const doImport = async () => {
     setBusy(true)
     const subj = subjects.find((s) => s.id === (subjectId ?? subjects[0]?.id))
-    let created = 0, updated = 0, newClasses = 0, newGroups = 0
+    let created = 0, updated = 0, newClasses = 0, newGroups = 0, moved = 0
     const classCache = new Map(classes.map((c) => [c.name.toLowerCase(), c.id]))
     const groupCache = new Map(groups.map((g) => [g.name.toLowerCase(), g]))
     const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
@@ -84,11 +84,21 @@ function ExcelImport() {
           let g = groupCache.get(gname.toLowerCase())
           if (!g) { const id = await db.groups.add({ name: gname, subjectId: subj?.id, gradeLevel: grade, studentIds: [] }); g = { id, name: gname, subjectId: subj?.id, gradeLevel: grade, studentIds: [] }; groupCache.set(gname.toLowerCase(), g); newGroups++ }
           if (!g.studentIds.includes(studentId)) { g.studentIds = [...g.studentIds, studentId]; await db.groups.update(g.id, { studentIds: g.studentIds }) }
+          // přesun: odebrat z ostatních skupin stejného předmětu v ročníku
+          for (const other of groupCache.values()) {
+            if (other.id !== g.id && other.subjectId === subj?.id && other.gradeLevel === grade && other.studentIds.includes(studentId)) { other.studentIds = other.studentIds.filter((x) => x !== studentId); await db.groups.update(other.id, { studentIds: other.studentIds }); moved++ }
+          }
+        } else if (r.group === '' && mapping.group) {
+          // „-“ = bez skupiny: odebrat ze všech skupin předmětu v ročníku
+          const grade = r.gradeLevel || (cname ? gradeFromClassName(cname) : 0)
+          for (const other of groupCache.values()) {
+            if (other.subjectId === subj?.id && other.gradeLevel === grade && other.studentIds.includes(studentId)) { other.studentIds = other.studentIds.filter((x) => x !== studentId); await db.groups.update(other.id, { studentIds: other.studentIds }); moved++ }
+          }
         }
       }
     })
     setBusy(false)
-    setResult(`Hotovo: ${created} nových žáků, ${updated} aktualizovaných, ${newClasses} nových tříd, ${newGroups} nových skupin.`)
+    setResult(`Hotovo: ${created} nových žáků, ${updated} aktualizovaných, ${newClasses} nových tříd, ${newGroups} nových skupin${moved ? `, ${moved} přesunů mezi skupinami` : ''}.`)
   }
 
   return (
