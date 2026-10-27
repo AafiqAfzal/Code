@@ -1,6 +1,6 @@
 # Změny
 
-## Připravovaná verze
+## 3.0.6
 
 - Tematické plány: u tématu probíraného ve více hodinách se zobrazí všechna data (např. „3× 5.10., 12.10., 19.10.“), po najetí myší i skupina; dřív se ukázalo jen poslední datum
 - Zápis z hodiny: opakované zapsání téhož tématu už nepřepíše datum prvního probrání; v nabídce plánu je vidět, kolikrát se téma probíralo
