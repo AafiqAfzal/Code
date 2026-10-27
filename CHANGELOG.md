@@ -1,5 +1,10 @@
 # Změny
 
+## Připravovaná verze
+
+- Tematické plány: u tématu probíraného ve více hodinách se zobrazí všechna data (např. „3× 5.10., 12.10., 19.10.“), po najetí myší i skupina; dřív se ukázalo jen poslední datum
+- Zápis z hodiny: opakované zapsání téhož tématu už nepřepíše datum prvního probrání; v nabídce plánu je vidět, kolikrát se téma probíralo
+
 ## 3.0.5
 
 - Skupiny: žák je v ročníku jen v jedné skupině předmětu – přidáním do druhé skupiny (i kolegyně) se z první odebere; platí i pro opakovaný import žáků z Excelu („-“ = bez skupiny)

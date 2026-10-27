@@ -68,7 +68,12 @@ export function LessonLogsPage() {
     const { id, ...data } = draft
     if (id) await db.lessonLogs.update(id, data)
     else await db.lessonLogs.add(data)
-    if (draft.planItemId) await db.planItems.update(draft.planItemId, { done: true, doneDate: draft.date })
+    if (draft.planItemId) {
+      // téma se může probírat víckrát – datum odškrtnutí zůstává první hodina, další data se berou ze zápisů
+      const item = await db.planItems.get(draft.planItemId)
+      const first = item?.done && item.doneDate && item.doneDate < draft.date ? item.doneDate : draft.date
+      await db.planItems.update(draft.planItemId, { done: true, doneDate: first })
+    }
     setDraft(null)
   }
   const relevantPlanItems = (d: Draft) => {
@@ -145,7 +150,7 @@ export function LessonLogsPage() {
                 <Field label="Odškrtnout v tematickém plánu">
                   <select className="input" value={draft.planItemId ?? ''} onChange={(e) => { const id = Number(e.target.value) || undefined; const it = planItems.find((i) => i.id === id); setDraft({ ...draft, planItemId: id, topic: draft.topic || it?.text || '' }) }}>
                     <option value="">— žádná položka —</option>
-                    {relevantPlanItems(draft).map((i) => <option key={i.id} value={i.id}>{i.done ? '✓ ' : ''}{i.month ? `[${i.month}] ` : ''}{i.text}</option>)}
+                    {relevantPlanItems(draft).map((i) => { const n = logs.filter((l) => l.planItemId === i.id && l.id !== draft.id).length; return <option key={i.id} value={i.id}>{i.done ? '✓ ' : ''}{n > 1 ? `(${n}×) ` : ''}{i.month ? `[${i.month}] ` : ''}{i.text}</option> })}
                   </select>
                 </Field>
               )}

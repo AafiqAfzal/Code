@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowDown, ArrowLeft, ArrowUp, Plus, Trash2 } from 'lucide-react'
 import { db, type PlanItem } from '../db/schema'
-import { useSubjects } from '../components/hooks'
+import { useClasses, useGroups, useSubjects } from '../components/hooks'
 import { PageHeader } from '../components/ui'
 import { MONTHS, fmtDate, todayISO } from '../lib/format'
 
@@ -12,6 +12,15 @@ export function PlanDetail() {
   const plan = useLiveQuery(() => db.plans.get(planId), [planId])
   const items = useLiveQuery(() => db.planItems.where('planId').equals(planId).sortBy('order'), [planId]) ?? []
   const subjects = useSubjects()
+  const groups = useGroups()
+  const classes = useClasses()
+  // všechny zápisy z hodin navázané na položky plánu – jedno téma se může probírat víckrát
+  const itemIds = items.map((i) => i.id).join(',')
+  const logs = useLiveQuery(() => {
+    const ids = new Set(items.map((i) => i.id))
+    return db.lessonLogs.filter((l) => l.planItemId != null && ids.has(l.planItemId)).toArray()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemIds]) ?? []
   const [newText, setNewText] = useState('')
   const [monthFilter, setMonthFilter] = useState('')
   const [hideDone, setHideDone] = useState(false)
@@ -25,6 +34,13 @@ export function PlanDetail() {
   const pct = topics.length ? Math.round((done / topics.length) * 100) : 0
   const visible = items.filter((i) => (!monthFilter || i.month === monthFilter) && (!hideDone || !i.done || i.level === 0))
 
+  const unitName = (l: { groupId?: number; classId?: number }) => groups.find((g) => g.id === l.groupId)?.name ?? classes.find((c) => c.id === l.classId)?.name ?? ''
+  /** Data probrání tématu: ze zápisů z hodin, případně ruční odškrtnutí */
+  const datesOf = (i: PlanItem) => {
+    const list = logs.filter((l) => l.planItemId === i.id).map((l) => ({ date: l.date, who: unitName(l) }))
+    if (i.done && i.doneDate && !list.some((x) => x.date === i.doneDate)) list.push({ date: i.doneDate, who: '' })
+    return list.sort((a, b) => a.date.localeCompare(b.date))
+  }
   const toggle = (i: PlanItem) => db.planItems.update(i.id, { done: !i.done, doneDate: !i.done ? todayISO() : undefined })
   const add = async () => {
     if (!newText.trim()) return
@@ -69,7 +85,12 @@ export function PlanDetail() {
               </div>
               {i.month && <span className="text-[10px] uppercase text-slate-400 w-16">{i.month}</span>}
               {i.hours != null && <span className="text-[10px] text-slate-400 w-8">{i.hours} h</span>}
-              {i.done && i.doneDate && <span className="text-[10px] text-green-600 w-16">{fmtDate(i.doneDate, 'd.M.')}</span>}
+              {i.level > 0 && datesOf(i).length > 0 && (
+                <span className="text-[10px] text-green-600 text-right max-w-48" title={datesOf(i).map((d) => `${fmtDate(d.date)}${d.who ? ` – ${d.who}` : ''}`).join('\n')}>
+                  {datesOf(i).length > 1 && <b className="mr-1">{datesOf(i).length}×</b>}
+                  {datesOf(i).map((d) => fmtDate(d.date, 'd.M.')).join(', ')}
+                </span>
+              )}
               <span className="flex gap-0.5 opacity-0 group-hover:opacity-100 no-print">
                 <button className="btn-ghost btn-sm" onClick={() => db.planItems.update(i.id, { level: i.level === 0 ? 1 : 0 })} title="Nadpis / téma">{i.level === 0 ? 'T' : 'N'}</button>
                 <button className="btn-ghost btn-sm" onClick={() => move(i, -1)}><ArrowUp size={12} /></button>
