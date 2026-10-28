@@ -1,6 +1,7 @@
 name: Cleanup old releases
 
 # Ruční úklid: smaže vydání a tagy uvedené ve vstupu (výchozí v1.0.0–v1.4.0).
+# Nejnovější vydání nikdy nesmaže – na releases/latest stojí automatické aktualizace.
 on:
   workflow_dispatch:
     inputs:
@@ -16,15 +17,30 @@ jobs:
   cleanup:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Delete releases and tags
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # vstup jen přes proměnnou prostředí – nikdy jej nevkládat přímo do skriptu
+          TAGS: ${{ github.event.inputs.tags }}
         run: |
-          for t in ${{ github.event.inputs.tags }}; do
+          set -euo pipefail
+          read -r -a tags <<< "$TAGS"
+          LATEST="$(gh release view --json tagName --jq .tagName 2>/dev/null || true)"
+          echo "newest release: ${LATEST:-<none>}"
+          # nejdřív ověřit celý vstup, teprve potom mazat
+          for t in "${tags[@]}"; do
+            if [[ ! "$t" =~ ^v[0-9A-Za-z.+-]+$ ]]; then
+              echo "::error::invalid tag name: $t"; exit 1
+            fi
+            if [[ -n "$LATEST" && "$t" == "$LATEST" ]]; then
+              echo "::error::refusing to delete the newest release $t (auto-updater uses releases/latest)"; exit 1
+            fi
+          done
+          for t in "${tags[@]}"; do
             if gh release view "$t" >/dev/null 2>&1; then
               gh release delete "$t" --cleanup-tag --yes && echo "deleted release+tag $t"
-            elif git ls-remote --tags origin "refs/tags/$t" | grep -q "$t"; then
+            elif [[ -n "$(git ls-remote --tags origin "refs/tags/$t")" ]]; then
               git push origin ":refs/tags/$t" && echo "deleted tag $t"
             else
               echo "nothing to delete for $t"

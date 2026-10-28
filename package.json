@@ -42,8 +42,7 @@
     "react-router-dom": "^7.18.3",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
-    "vite": "^8.2.2",
-    "xlsx": "^0.18.5"
+    "vite": "^8.2.2"
   },
   "description": "Pedagogický deník pro učitele ZŠ",
   "author": ""

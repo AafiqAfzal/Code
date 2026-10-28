@@ -2,10 +2,11 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Download } from 'lucide-react'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs/dist/exceljs.min.js'
 import { db } from '../db/schema'
 import { rosterOf, useClasses, useGroups, useSettings, useStudents, useSubjects, useTeachingUnits } from '../components/hooks'
 import { PageHeader } from '../components/ui'
+import { addSheet, downloadWorkbook, safeFileName } from '../lib/export'
 import { MONTHS, fmtDate, fullName, genderClass } from '../lib/format'
 
 const MONTH_NUM: Record<string, number> = { září: 9, říjen: 10, listopad: 11, prosinec: 12, leden: 1, únor: 2, březen: 3, duben: 4, květen: 5, červen: 6 }
@@ -47,13 +48,15 @@ export function AttendancePage() {
   const absent = (sid: number) => filtered.filter((l) => l.absentStudentIds.includes(sid))
   const title = `Docházka ${group?.name ?? classes.find((c) => c.id === classId)?.name ?? ''}${month ? ` – ${month}` : ''} ${settings?.schoolYear ?? ''}`
 
-  const exportXlsx = () => {
+  const exportXlsx = async () => {
     const header = ['Příjmení', 'Jméno', ...filtered.map((l) => `${fmtDate(l.date, 'd.M.')}${l.lessonNumber ? ` (${l.lessonNumber}.h)` : ''}`), 'Zameškáno', 'Z celkem', '%']
     const rows = roster.map((s) => { const a = absent(s.id).length; return [s.lastName, s.firstName, ...filtered.map((l) => (l.absentStudentIds.includes(s.id) ? 'A' : '')), a, filtered.length, filtered.length ? Math.round((a / filtered.length) * 100) : 0] })
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([[title], [], header, ...rows]), 'Docházka')
-    XLSX.writeFile(wb, `${title.replace(/[^\w\dáčďéěíňóřšťúůýž .-]/gi, '')}.xlsx`)
+    const wb = new ExcelJS.Workbook()
+    addSheet(wb, 'Docházka', [[title], [], header, ...rows])
+    await downloadWorkbook(wb, safeFileName(title))
   }
+  const n = filtered.length
+  const lessonsLabel = `${n} ${n === 1 ? 'zapsaná hodina' : n >= 2 && n <= 4 ? 'zapsané hodiny' : 'zapsaných hodin'}`
 
   return (
     <div>
@@ -73,7 +76,7 @@ export function AttendancePage() {
       {!sel && <div className="card card-body text-sm text-slate-500">Vyberte skupinu nebo třídu. Absence se berou ze <Link to="/zapisy" className="underline text-blue-700">zápisů z hodin</Link>.</div>}
       {sel && (
         <div className="card overflow-x-auto">
-          <div className="px-4 py-2 text-sm text-slate-600 border-b border-slate-200">{filtered.length} zapsaných hodin{month ? ` v měsíci ${month}` : ''}</div>
+          <div className="px-4 py-2 text-sm text-slate-600 border-b border-slate-200">{lessonsLabel}{month ? ` v měsíci ${month}` : ''}</div>
           <table className="table whitespace-nowrap">
             <thead>
               <tr>

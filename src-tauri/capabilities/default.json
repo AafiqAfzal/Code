@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Oprávnění hlavního okna: zálohy do Dokumentů, dialogy, oznámení, aktualizace",
+  "description": "Oprávnění hlavního okna: zálohy jen do Dokumenty/Pedagogický deník, dialogy, oznámení, aktualizace",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -11,15 +11,23 @@
     "dialog:default",
     "notification:default",
     "opener:default",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [{ "path": "$DOCUMENT/Pedagogický deník/zalohy" }]
+    },
     "process:default",
     "updater:default",
-    "fs:default",
-    "fs:allow-document-read-recursive",
-    "fs:allow-document-write-recursive",
-    "fs:allow-document-meta-recursive",
+    "fs:deny-default",
+    "fs:allow-exists",
+    "fs:allow-mkdir",
+    "fs:allow-read-dir",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "fs:allow-rename",
+    "fs:allow-remove",
     {
       "identifier": "fs:scope",
-      "allow": [{ "path": "$DOCUMENT" }, { "path": "$DOCUMENT/**" }]
+      "allow": [{ "path": "$DOCUMENT/Pedagogický deník" }, { "path": "$DOCUMENT/Pedagogický deník/**" }]
     }
   ]
 }
