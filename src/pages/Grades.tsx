@@ -5,7 +5,7 @@ import { Download, Plus, Shuffle, Info } from 'lucide-react'
 import { db, type Assessment } from '../db/schema'
 import { useCategories, useClasses, useGroups, useScale, useSettings, useStudents, useSubjects, useTeachingUnits } from '../components/hooks'
 import { ConfirmButton, Field, Modal, PageHeader, Toast, useToast } from '../components/ui'
-import { fmtDate, fullName, genderClass, todayISO } from '../lib/format'
+import { fmtDate, fullName, genderClass, todayISO, fmtNum } from '../lib/format'
 import { GRADE_COLORS, avgColor, effectiveGrade, percentOf, proposedGrade, weightedAverage } from '../lib/grading'
 import { exportGradesXlsx } from '../lib/export'
 import { TERM_LABEL, currentTerm, termRange, type Term } from '../lib/terms'
@@ -74,29 +74,47 @@ export function GradesPage() {
     return [...map.values()].sort((a, b) => a.date.localeCompare(b.date))
   }, [assessments])
 
-  const [newCol, setNewCol] = useState<{ title: string; date: string; categoryId: number; weight: number; maxPoints?: number } | null>(null)
+  /** Formulář sloupce: nové hodnocení, nebo úprava existujícího (edit = původní sloupec) */
+  const [newCol, setNewCol] = useState<{ title: string; date: string; categoryId: number; weight: number; maxPoints?: number; edit?: Column } | null>(null)
   const [cell, setCell] = useState<{ studentId: number; column: Column; a?: Assessment } | null>(null)
   const [cellDraft, setCellDraft] = useState<Partial<Assessment>>({})
   const [picked, setPicked] = useState<string | null>(null)
 
   const addColumn = async () => {
-    if (!newCol || !newCol.title.trim() || !subjectId) return
+    if (!newCol || !subjectId) return
+    if (!newCol.title.trim()) { alert('Vyplňte název hodnocení.'); return }
+    if (!newCol.date) { alert('Vyplňte datum.'); return }
     const cat = categories.find((c) => c.id === newCol.categoryId)
     const key = `${newCol.date}|${newCol.title.trim()}|${newCol.categoryId}`
-    const dup = await db.assessments.where('subjectId').equals(subjectId).filter((a) => rosterIds.includes(a.studentId) && `${a.date}|${a.title}|${a.categoryId}` === key).count()
-    if (dup) { alert('Hodnocení se stejným názvem, datem a kategorií už v této skupině existuje. Změňte název nebo datum.'); return }
+    const keyOf = (a: Assessment) => `${a.date}|${a.title}|${a.categoryId}`
+    const inGroup = (a: Assessment) => rosterIds.includes(a.studentId)
+    if (newCol.edit?.key !== key) {
+      const dup = await db.assessments.where('subjectId').equals(subjectId).filter((a) => inGroup(a) && keyOf(a) === key).count()
+      if (dup) { alert('Hodnocení se stejným názvem, datem a kategorií už v této skupině existuje. Změňte název nebo datum.'); return }
+    }
     // váha 0 je platná (informativní hodnocení); prázdné pole = váha kategorie
     const weight = Number.isFinite(newCol.weight) ? newCol.weight : cat?.weight ?? 1
-    await db.assessments.bulkAdd(roster.map((s) => ({
-      studentId: s.id, subjectId, groupId, categoryId: newCol.categoryId, date: newCol.date, title: newCol.title.trim(), weight, maxPoints: newCol.maxPoints || undefined,
-    })))
+    const old = newCol.edit
+    if (old) {
+      // úprava celého sloupce: název, datum, kategorie, max. bodů pro všechny; váha jen tam, kde nebyla upravená jednotlivě
+      await db.transaction('rw', db.assessments, async () => {
+        await db.assessments.where('subjectId').equals(subjectId).filter((a) => inGroup(a) && keyOf(a) === old.key).modify((a) => {
+          a.title = newCol.title.trim(); a.date = newCol.date; a.categoryId = newCol.categoryId; a.maxPoints = newCol.maxPoints || undefined
+          if (a.weight === old.weight || a.weight == null) a.weight = weight
+        })
+      })
+    } else {
+      await db.assessments.bulkAdd(roster.map((s) => ({
+        studentId: s.id, subjectId, groupId, categoryId: newCol.categoryId, date: newCol.date, title: newCol.title.trim(), weight, maxPoints: newCol.maxPoints || undefined,
+      })))
+    }
     setNewCol(null)
     // sloupec s datem v jiném pololetí by „zmizel“ – přepneme na jeho pololetí
     if (activeTerm && (newCol.date < range.from || newCol.date > range.to)) {
       const other = activeTerm === 1 ? 2 : 1
       setTerm(other)
-      show(`Sloupec přidán do ${TERM_LABEL[other]} (podle data) – zobrazuji ho.`)
-    } else show('Sloupec přidán – klikněte do buněk a vyplňte známky.')
+      show(`Sloupec ${old ? 'upraven a přesunut' : 'přidán'} do ${TERM_LABEL[other]} (podle data) – zobrazuji ho.`)
+    } else show(old ? 'Hodnocení upraveno.' : 'Sloupec přidán – klikněte do buněk a vyplňte známky.')
   }
   const openCell = (studentId: number, column: Column) => {
     const a = assessments.find((x) => x.studentId === studentId && `${x.date}|${x.title}|${x.categoryId}` === column.key)
@@ -131,6 +149,8 @@ export function GradesPage() {
     const ids = assessments.filter((a) => `${a.date}|${a.title}|${a.categoryId}` === c.key).map((a) => a.id)
     await db.assessments.bulkDelete(ids)
   }
+  /** Přesun na buňku (řádek žáka, sloupec) – šipky a automatický posun po zápisu známky */
+  const focusCell = (r: number, c: number) => (document.querySelector(`button[data-cell="${r}:${c}"]`) as HTMLButtonElement | null)?.focus()
   const catOf = (id: number) => categories.find((c) => c.id === id)
   const title = `${subjects.find((s) => s.id === subjectId)?.abbreviation ?? ''} ${group?.name ?? classes.find((c) => c.id === classId)?.name ?? ''} ${settings?.schoolYear ?? ''} ${activeTerm ? TERM_LABEL[activeTerm] : ''}`.trim()
 
@@ -162,8 +182,9 @@ export function GradesPage() {
                   const cat = catOf(c.categoryId)
                   return (
                     <th key={c.key} className="text-center min-w-14 max-w-24 px-1 group/col" style={{ borderTop: `3px solid ${cat?.color ?? '#94a3b8'}` }}>
-                      <div className="normal-case font-semibold text-slate-700 truncate text-center mx-auto" title={c.title}>{c.title}</div>
-                      <div className="font-normal text-[10px] text-slate-400 text-center whitespace-normal leading-tight" title={cat?.name}>{fmtDate(c.date, 'd.M.')} · v{c.weight}{c.maxPoints ? ` · /${c.maxPoints}` : ''}</div>
+                      <button className="block w-full normal-case font-semibold text-slate-700 truncate text-center mx-auto hover:text-blue-700 hover:underline" title={`${c.title} – klikněte pro úpravu (název, datum, kategorie, váha, max. bodů)`}
+                        onClick={() => setNewCol({ title: c.title, date: c.date, categoryId: c.categoryId, weight: c.weight, maxPoints: c.maxPoints, edit: c })}>{c.title}</button>
+                      <div className="font-normal text-[10px] text-slate-400 text-center whitespace-normal leading-tight" title={cat?.name}>{fmtDate(c.date, 'd.M.')} · v{fmtNum(c.weight)}{c.maxPoints ? ` · /${c.maxPoints}` : ''}</div>
                       <ConfirmButton className="text-[10px] text-red-500 opacity-0 group-hover/col:opacity-100 no-print" onConfirm={() => deleteColumn(c)}>smazat sloupec</ConfirmButton>
                     </th>
                   )
@@ -173,38 +194,43 @@ export function GradesPage() {
               </tr>
             </thead>
             <tbody>
-              {roster.map((s) => {
+              {roster.map((s, ri) => {
                 const mine = assessments.filter((a) => a.studentId === s.id)
                 const avg = weightedAverage(mine, scale)
                 return (
                   <tr key={s.id}>
                     <td className="sticky left-0 bg-white z-10 font-medium"><Link to={`/zaci/${s.id}`} className={`hover:underline ${genderClass(s.gender)}`} title={s.note || undefined}>{fullName(s)}</Link>{s.tags.length > 0 && <span className="ml-1 text-[10px] text-purple-700">{s.tags.join(', ')}</span>}{s.note && <span className="ml-1 inline-flex align-middle text-slate-400 cursor-help" title={s.note}><Info size={12} /></span>}</td>
-                    {columns.map((c) => {
+                    {columns.map((c, ci) => {
                       const a = mine.find((x) => `${x.date}|${x.title}|${x.categoryId}` === c.key)
                       const g = a ? effectiveGrade(a, scale) : undefined
                       const p = a ? percentOf(a) : undefined
                       return (
                         <td key={c.key} className="text-center p-0.5">
-                          <button tabIndex={0} onMouseEnter={(e) => e.currentTarget.focus()} onKeyDown={(e) => { const k = keyToGrade(e); if (k) { e.preventDefault(); quickSet(s.id, c, k) } }}
-                            onClick={() => openCell(s.id, c)} title={a?.note || (p != null ? `${a?.points}/${a?.maxPoints} = ${p} %` : 'Najeďte myší a stiskněte 1–5 (i na české klávesnici), N = nehodnocen, Delete = smazat; klik = detail')}
+                          <button tabIndex={0} data-cell={`${ri}:${ci}`} onMouseEnter={(e) => e.currentTarget.focus()} onKeyDown={(e) => {
+                              const k = keyToGrade(e)
+                              if (k) { e.preventDefault(); quickSet(s.id, c, k); if (k !== 'Delete' && k !== 'Backspace') focusCell(ri + 1, ci); return }
+                              const move: Record<string, [number, number]> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }
+                              if (move[e.key]) { e.preventDefault(); focusCell(ri + move[e.key][0], ci + move[e.key][1]) }
+                            }}
+                            onClick={() => openCell(s.id, c)} title={a?.note || (p != null ? `${fmtNum(a?.points)}/${a?.maxPoints} = ${fmtNum(p, 1)} %` : 'Najeďte myší a stiskněte 1–5 (i na české klávesnici), N = nehodnocen, Delete = smazat; klik = detail')}
                             className={`h-8 w-full min-w-9 rounded border text-sm font-semibold focus:ring-2 focus:ring-blue-500 ${a?.absent ? 'bg-slate-100 text-slate-400 border-slate-200' : g != null ? GRADE_COLORS[g] : 'bg-white border-dashed border-slate-200 text-slate-300'}`}>
-                            {a?.absent ? 'N' : g ?? '·'}{p != null && <span className="block text-[9px] font-normal leading-none">{p} %</span>}
+                            {a?.absent ? 'N' : g ?? '·'}{p != null && <span className="block text-[9px] font-normal leading-none">{fmtNum(p, 1)} %</span>}
                           </button>
                         </td>
                       )
                     })}
-                    <td className={`text-center font-bold ${avgColor(avg)}`}>{avg ?? '—'}</td>
+                    <td className={`text-center font-bold ${avgColor(avg)}`}>{avg != null ? fmtNum(avg) : '—'}</td>
                     <td className="text-center">{avg != null && <span className={`inline-block rounded border px-2 font-semibold ${GRADE_COLORS[proposedGrade(avg)!]}`}>{proposedGrade(avg)}</span>}</td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
-          <div className="px-4 py-2 text-xs text-slate-400 no-print">Tip: najeďte myší na buňku a stiskněte 1–5 (funguje i na české klávesnici bez Shiftu), N = nehodnocen, Delete = smazat. Klik otevře detail (body, poznámka, váha).</div>
+          <div className="px-4 py-2 text-xs text-slate-400 no-print">Tip: najeďte myší na buňku (nebo se v tabulce pohybujte šipkami) a stiskněte 1–5 – funguje i na české klávesnici bez Shiftu; po zápisu se kurzor posune na dalšího žáka. N = nehodnocen, Delete = smazat, Enter nebo klik = detail (body, poznámka, váha). Klik na název sloupce = úprava hodnocení.</div>
         </div>
       )}
 
-      <Modal open={!!newCol} onClose={() => setNewCol(null)} title="Nové hodnocení pro celou skupinu">
+      <Modal open={!!newCol} onClose={() => setNewCol(null)} title={newCol?.edit ? 'Upravit hodnocení' : 'Nové hodnocení pro celou skupinu'}>
         {newCol && (
           <div className="space-y-3">
             <Field label="Název (např. Test – Unit 2)"><input className="input" autoFocus value={newCol.title} onChange={(e) => setNewCol({ ...newCol, title: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && addColumn()} /></Field>
@@ -220,7 +246,11 @@ export function GradesPage() {
               <Field label="Váha"><input type="number" step="0.5" min={0} className="input" value={Number.isFinite(newCol.weight) ? newCol.weight : ''} onChange={(e) => setNewCol({ ...newCol, weight: e.target.value === '' ? NaN : Number(e.target.value) })} /></Field>
               <Field label="Max. bodů (volitelné – známka se dopočítá ze škály)"><input type="number" min={0} className="input" value={newCol.maxPoints ?? ''} onChange={(e) => setNewCol({ ...newCol, maxPoints: Number(e.target.value) || undefined })} /></Field>
             </div>
-            <div className="flex justify-end gap-2"><button className="btn-secondary" onClick={() => setNewCol(null)}>Zrušit</button><button className="btn-primary" onClick={addColumn}>Přidat pro {roster.length} žáků</button></div>
+            {newCol.edit && <p className="text-xs text-slate-500">Změna se projeví u všech žáků v tomto sloupci. Známky zůstanou; u bodů se známka přepočítá podle nového maxima. Váha upravená u jednotlivého žáka zůstane.</p>}
+            <div className="flex justify-between gap-2">
+              {newCol.edit ? <ConfirmButton confirmLabel="Smazat celý sloupec?" onConfirm={async () => { await deleteColumn(newCol.edit!); setNewCol(null); show('Sloupec smazán.') }}>Smazat sloupec</ConfirmButton> : <span />}
+              <div className="flex gap-2"><button className="btn-secondary" onClick={() => setNewCol(null)}>Zrušit</button><button className="btn-primary" onClick={addColumn}>{newCol.edit ? 'Uložit změny' : `Přidat pro ${roster.length} žáků`}</button></div>
+            </div>
           </div>
         )}
       </Modal>
@@ -235,7 +265,7 @@ export function GradesPage() {
               <Field label="Body"><input type="number" step="0.5" className="input" value={cellDraft.points ?? ''} onChange={(e) => setCellDraft({ ...cellDraft, points: e.target.value === '' ? undefined : Number(e.target.value), grade: undefined })} /></Field>
               <Field label="Max. bodů"><input type="number" className="input" value={cellDraft.maxPoints ?? ''} onChange={(e) => setCellDraft({ ...cellDraft, maxPoints: Number(e.target.value) || undefined })} /></Field>
             </div>
-            {cellDraft.points != null && cellDraft.maxPoints ? <div className="text-sm text-slate-600">= {Math.round((cellDraft.points / cellDraft.maxPoints) * 1000) / 10} % → známka <b>{effectiveGrade({ ...(cellDraft as Assessment), grade: undefined }, scale)}</b></div> : null}
+            {cellDraft.points != null && cellDraft.maxPoints ? <div className="text-sm text-slate-600">= {fmtNum(Math.round((cellDraft.points / cellDraft.maxPoints) * 1000) / 10, 1)} % → známka <b>{effectiveGrade({ ...(cellDraft as Assessment), grade: undefined }, scale)}</b></div> : null}
             <div className="grid grid-cols-2 gap-3">
               <Field label="Váha"><input type="number" step="0.5" className="input" min={0} value={Number.isFinite(cellDraft.weight) ? cellDraft.weight : ''} placeholder={String(cell.column.weight)} onChange={(e) => setCellDraft({ ...cellDraft, weight: e.target.value === '' ? NaN : Number(e.target.value) })} /></Field>
               <label className="flex items-center gap-2 text-sm pt-5"><input type="checkbox" checked={!!cellDraft.absent} onChange={(e) => setCellDraft({ ...cellDraft, absent: e.target.checked })} /> Nehodnocen (chyběl)</label>

@@ -6,7 +6,7 @@ import { ArrowLeft, Plus } from 'lucide-react'
 import { db, type Student, type StudentNoteKind } from '../db/schema'
 import { useCategories, useClasses, useGroups, useScale, useSettings, useSubjects } from '../components/hooks'
 import { Badge, ConfirmButton, Field, PageHeader } from '../components/ui'
-import { GENDER_LABEL, NOTE_KINDS, ageFrom, daysToBirthday, fmtDate, fullName, genderClass, todayISO } from '../lib/format'
+import { GENDER_LABEL, NOTE_KINDS, ageFrom, daysToBirthday, fmtDate, fullName, genderClass, todayISO, fmtNum } from '../lib/format'
 import { GRADE_COLORS, avgColor, effectiveGrade, percentOf, proposedGrade, weightedAverage } from '../lib/grading'
 import { termRange } from '../lib/terms'
 
@@ -31,16 +31,20 @@ export function StudentDetail() {
   const [noteText, setNoteText] = useState('')
   const [noteKind, setNoteKind] = useState<StudentNoteKind>('poznamka')
   const [tagInput, setTagInput] = useState('')
+  const [noteDate, setNoteDate] = useState(todayISO())
+  /** Úprava existující poznámky (datum, druh, text) */
+  const [noteEdit, setNoteEdit] = useState<{ id: number; date: string; kind: StudentNoteKind; text: string } | null>(null)
 
   if (!student) return <div className="text-slate-500">Žák nenalezen. <Link to="/zaci" className="underline">Zpět</Link></div>
   const cls = classes.find((c) => c.id === student.classId)
   const myGroups = groups.filter((g) => g.studentIds.includes(student.id))
 
+  const saveNoteEdit = async () => { if (!noteEdit || !noteEdit.text.trim()) return; await db.studentNotes.update(noteEdit.id, { date: noteEdit.date, kind: noteEdit.kind, text: noteEdit.text.trim() }); setNoteEdit(null) }
   const saveEdit = async () => { if (edit) { await db.students.update(student.id, edit); setEdit(null) } }
   const addNote = async () => {
     if (!noteText.trim()) return
-    await db.studentNotes.add({ studentId: student.id, date: todayISO(), kind: noteKind, text: noteText.trim() })
-    setNoteText('')
+    await db.studentNotes.add({ studentId: student.id, date: noteDate || todayISO(), kind: noteKind, text: noteText.trim() })
+    setNoteText(''); setNoteDate(todayISO())
   }
   const addTag = async (t: string) => {
     const tag = t.trim(); if (!tag || student.tags.includes(tag)) return
@@ -125,13 +129,13 @@ export function StudentDetail() {
                   <div key={s.id}>
                     <div className="flex items-center justify-between mb-1">
                       <div className="font-semibold">{s.name}</div>
-                      <div className="text-sm">1. pol.: <span className={`font-bold ${avgColor(avg1)}`}>{avg1 ?? '—'}</span>{avg1 != null && <span className="text-slate-400"> ({proposedGrade(avg1)})</span>} · 2. pol.: <span className={`font-bold ${avgColor(avg2)}`}>{avg2 ?? '—'}</span>{avg2 != null && <span className="text-slate-400"> ({proposedGrade(avg2)})</span>} · rok: <span className={`font-bold ${avgColor(avg)}`}>{avg ?? '—'}</span></div>
+                      <div className="text-sm">1. pol.: <span className={`font-bold ${avgColor(avg1)}`}>{avg1 != null ? fmtNum(avg1) : '—'}</span>{avg1 != null && <span className="text-slate-400"> ({proposedGrade(avg1)})</span>} · 2. pol.: <span className={`font-bold ${avgColor(avg2)}`}>{avg2 != null ? fmtNum(avg2) : '—'}</span>{avg2 != null && <span className="text-slate-400"> ({proposedGrade(avg2)})</span>} · rok: <span className={`font-bold ${avgColor(avg)}`}>{avg != null ? fmtNum(avg) : '—'}</span></div>
                     </div>
                     <div className="flex flex-wrap gap-1 mb-2">
                       {mine.map((a) => {
                         const g = effectiveGrade(a, scale)
                         const cat = categories.find((c) => c.id === a.categoryId)
-                        return <span key={a.id} title={`${fmtDate(a.date)} · ${a.title} · ${cat?.name ?? ''} · váha ${a.weight}${percentOf(a) != null ? ` · ${percentOf(a)} %` : ''}${a.note ? `\n${a.note}` : ''}`}
+                        return <span key={a.id} title={`${fmtDate(a.date)} · ${a.title} · ${cat?.name ?? ''} · váha ${a.weight}${percentOf(a) != null ? ` · ${fmtNum(percentOf(a), 1)} %` : ''}${a.note ? `\n${a.note}` : ''}`}
                           className={`inline-flex items-center justify-center h-7 min-w-7 px-1 rounded border text-sm font-semibold ${a.absent ? 'bg-slate-100 text-slate-400 border-slate-200' : GRADE_COLORS[g ?? 5]}`} style={{ borderLeftWidth: 4, borderLeftColor: cat?.color }}>{a.absent ? 'N' : g}</span>
                       })}
                       {mine.length === 0 && <span className="text-sm text-slate-400">Zatím bez známek.</span>}
@@ -161,6 +165,7 @@ export function StudentDetail() {
             <div className="px-4 py-3 border-b border-slate-200"><h3 className="card-title">Poznámky k žákovi</h3></div>
             <div className="card-body">
               <div className="flex gap-2 mb-3 no-print">
+                <input type="date" className="input w-auto" value={noteDate} onChange={(e) => setNoteDate(e.target.value)} title="Datum (např. včerejší telefonát s rodiči)" />
                 <select className="input w-auto" value={noteKind} onChange={(e) => setNoteKind(e.target.value as StudentNoteKind)}>{Object.entries(NOTE_KINDS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select>
                 <input className="input" placeholder="Nová poznámka… (Enter uloží)" value={noteText} onChange={(e) => setNoteText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addNote()} />
                 <button className="btn-primary" onClick={addNote}><Plus size={16} /></button>
@@ -168,12 +173,23 @@ export function StudentDetail() {
               <ul className="divide-y divide-slate-100">
                 {notes.length === 0 && <li className="text-sm text-slate-400 py-2">Zatím žádné poznámky.</li>}
                 {notes.map((n) => (
-                  <li key={n.id} className="py-2 text-sm flex gap-3 items-start">
+                  noteEdit?.id === n.id ? (
+                  <li key={n.id} className="py-2 text-sm flex flex-wrap gap-2 items-start no-print">
+                    <input type="date" className="input w-auto" value={noteEdit.date} onChange={(e) => setNoteEdit({ ...noteEdit, date: e.target.value })} />
+                    <select className="input w-auto" value={noteEdit.kind} onChange={(e) => setNoteEdit({ ...noteEdit, kind: e.target.value as StudentNoteKind })}>{Object.entries(NOTE_KINDS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select>
+                    <textarea className="input flex-1 min-w-48" rows={2} autoFocus value={noteEdit.text} onChange={(e) => setNoteEdit({ ...noteEdit, text: e.target.value })} onKeyDown={(e) => { if (e.key === 'Escape') setNoteEdit(null) }} />
+                    <button className="btn-primary btn-sm" onClick={saveNoteEdit}>Uložit</button>
+                    <button className="btn-secondary btn-sm" onClick={() => setNoteEdit(null)}>Zrušit</button>
+                  </li>
+                  ) : (
+                  <li key={n.id} className="py-2 text-sm flex gap-3 items-start group">
                     <span className="text-slate-500 w-20 shrink-0">{fmtDate(n.date)}</span>
                     <Badge className={NOTE_KINDS[n.kind].color}>{NOTE_KINDS[n.kind].label}</Badge>
-                    <span className="flex-1 whitespace-pre-wrap">{n.text}</span>
+                    <span className="flex-1 whitespace-pre-wrap cursor-text" onDoubleClick={() => setNoteEdit({ id: n.id, date: n.date, kind: n.kind, text: n.text })} title="Dvojklik = upravit">{n.text}</span>
+                    <button className="btn-ghost btn-sm no-print opacity-0 group-hover:opacity-100" onClick={() => setNoteEdit({ id: n.id, date: n.date, kind: n.kind, text: n.text })}>Upravit</button>
                     <ConfirmButton className="btn-ghost btn-sm no-print" onConfirm={() => db.studentNotes.delete(n.id)}>×</ConfirmButton>
                   </li>
+                  )
                 ))}
               </ul>
             </div>

@@ -257,7 +257,7 @@ export function SettingsPage() {
         <div className="flex flex-wrap gap-2 items-center">
           <button className="btn-primary" onClick={async () => { if (isDesktop()) { const f = await saveBackupAs(); if (f) show(`Uloženo: ${f}`) } else { downloadBlob(await exportBackup(), `pedagogicky-denik-${todayISO()}.json`); show('Záloha stažena.') } }}>{isDesktop() ? 'Uložit zálohu jako…' : 'Stáhnout zálohu (JSON)'}</button>
           <label className="btn-secondary">Obnovit ze zálohy<input type="file" accept=".json" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (!confirm(`Obnovení nahradí všechna současná data. ${isDesktop() ? 'Současný stav se předtím uloží do složky záloh' : 'Současný stav se předtím stáhne jako soubor'} „…-pred-obnovou.json“. Pokračovat?`)) { e.target.value = ''; return } try { await restoreBackup(f); show('Data obnovena.'); setTimeout(() => location.reload(), 1200) } catch (err) { alert((err as Error).message) } e.target.value = '' }} /></label>
-          <button className="btn-secondary" onClick={async () => { await loadDemoData(); show('Ukázková data přidána.') }}>Přidat ukázková data</button>
+          <button className="btn-secondary" onClick={async () => { if ((counts?.students ?? 0) > 0 && !confirm('V aplikaci už jsou žáci. Ukázková data (smyšlení žáci, třídy 6.A a 6.B, známky) se k nim přidají. Pokračovat?')) return; await loadDemoData(); show('Ukázková data přidána.') }}>Přidat ukázková data</button>
           <ConfirmButton className="btn-danger" confirmLabel="Opravdu vše smazat?" onConfirm={async () => { await safetyBackup('pred-smazanim'); await wipeAll(); location.reload() }}>Smazat všechna data</ConfirmButton>
         </div>
       </section>

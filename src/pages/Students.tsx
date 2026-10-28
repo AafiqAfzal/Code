@@ -39,7 +39,7 @@ export function StudentsPage() {
 
   return (
     <div>
-      <PageHeader title="Žáci" subtitle={`${list.length} žáků · ${list.filter((s) => s.gender === 'F').length} dívek, ${list.filter((s) => s.gender === 'M').length} chlapců`} actions={
+      <PageHeader title="Žáci" subtitle={[`${list.length} žáků`, (() => { const f = list.filter((s) => s.gender === 'F').length, m = list.filter((s) => s.gender === 'M').length; return f + m ? `${f} dívek, ${m} chlapců` : '' })()].filter(Boolean).join(' · ')} actions={
         <>
           <button className="btn-secondary" onClick={() => exportStudentsXlsx(list, className, (id) => groupsOf(id).map((g) => g.name).join(', '))}><Download size={16} /> Export XLSX</button>
           <button className="btn-primary" onClick={() => setDraft({ classId: classes[0]?.id })}><Plus size={16} /> Nový žák</button>

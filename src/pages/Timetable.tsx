@@ -112,8 +112,8 @@ export function TimetablePage() {
         <table className="table text-center">
           <thead><tr><th className="text-left">Den</th>{LESSON_NUMBERS.map((l) => [
             <th key={`b${l}`} className={breakShown(l) ? 'text-center !px-0 w-14 min-w-14' : '!p-0 w-1'}>{breakShown(l) && <div className="font-normal normal-case text-[10px] leading-tight text-teal-700">dozor<div className="text-slate-500">{breakRange(l)}</div></div>}</th>,
-            <th key={l} className="text-center whitespace-nowrap min-w-24">{l}. hodina<div className="font-normal normal-case text-[11px] text-slate-500">{lessonRange(l)}</div></th>,
-          ])}<th></th></tr></thead>
+            <th key={l} className="text-center whitespace-nowrap min-w-20">{l}. hodina<div className="font-normal normal-case text-[11px] text-slate-500">{lessonRange(l)}</div></th>,
+          ])}</tr></thead>
           <tbody>
             {days.map(({ name, date }) => {
               const entries = scheduleForDate(date, slots, changes)
@@ -128,6 +128,11 @@ export function TimetablePage() {
                     {holiday && <div className="mt-1 text-[11px] text-rose-700">svátek: {holiday}</div>}
                     {vacation && !holiday && <div className="mt-1 text-[11px] text-emerald-700">{vacation}</div>}
                     {wholeDay && <div className="mt-1 text-[11px] text-red-700">odpadá: {wholeDay.note || 'celý den'}</div>}
+                    {/* akce dne přímo pod datem – samostatný sloupec se na notebook nevešel */}
+                    {!holiday && <div className="mt-1 no-print">
+                      {wholeDay ? <ConfirmButton className="text-[11px] text-blue-700 hover:underline" confirmLabel="Obnovit?" onConfirm={() => db.timetableChanges.delete(wholeDay.id)}>Obnovit den</ConfirmButton>
+                        : <button className="text-[11px] text-red-700 hover:underline whitespace-nowrap" title="Projektový den, nepřítomnost…" onClick={() => setChangeDraft(newChange(date, 'odpada'))}>Celý den odpadá</button>}
+                    </div>}
                   </td>
                   {LESSON_NUMBERS.map((l) => {
                     const breakDuties = entries.filter((e) => e.lessonNumber === l && e.kind === 'dozor' && !isLessonDuty(e))
@@ -162,11 +167,11 @@ export function TimetablePage() {
                           </button>
                         ) : (
                         <button onClick={() => setPick({ date, lessonNumber: l, entry: e })}
-                          className={`h-16 w-full rounded border text-xs ${cellClass(e)} ${holiday || vacation ? 'opacity-40' : ''}`} style={e && e.status === 'regular' && e.kind === 'hodina' ? { background: gColor(e.groupId) ?? '#2563eb' } : undefined}
+                          className={`h-16 w-full overflow-hidden rounded border text-xs ${cellClass(e)} ${holiday || vacation ? 'opacity-40' : ''}`} style={e && e.status === 'regular' && e.kind === 'hodina' ? { background: gColor(e.groupId) ?? '#2563eb' } : undefined}
                           title={e?.reason ? `Odpadá: ${e.reason}` : e?.change?.note}>
                           {e && (
                             <>
-                              <div className="font-bold">{e.kind === 'krouzek' ? (e.title || 'Kroužek') : e.status === 'substitution' ? `Supl. ${substSubject(e)}` : sAbbr(e.subjectId)}</div>
+                              <div className="font-bold truncate px-1" title={e.kind === 'krouzek' ? e.title : undefined}>{e.kind === 'krouzek' ? (e.title || 'Kroužek') : e.status === 'substitution' ? `Supl. ${substSubject(e)}` : sAbbr(e.subjectId)}</div>
                               {e.kind === 'krouzek' && e.timeFrom && e.timeTo && <div className="text-[10px] opacity-90">{e.timeFrom}–{e.timeTo}</div>}
                               <div className="truncate px-1">{gName(e) || (e.kind === 'suplovani' || e.kind === 'krouzek' ? '' : e.title) || ''}</div>
                               {e.room && <div className="opacity-80">uč. {e.room}</div>}
@@ -180,10 +185,6 @@ export function TimetablePage() {
                       </td>,
                     ]
                   })}
-                  <td className="align-top pt-2 no-print">
-                    {wholeDay ? <ConfirmButton className="btn-secondary btn-sm" confirmLabel="Obnovit?" onConfirm={() => db.timetableChanges.delete(wholeDay.id)}>Obnovit den</ConfirmButton>
-                      : <button className="btn-ghost btn-sm text-red-700" title="Projektový den, nepřítomnost…" onClick={() => setChangeDraft(newChange(date, 'odpada'))}>Celý den odpadá</button>}
-                  </td>
                 </tr>
               )
             })}

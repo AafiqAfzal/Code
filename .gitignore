@@ -29,3 +29,6 @@ release
 # Tauri
 src-tauri/target
 src-tauri/gen/schemas
+
+# pracovní kopie pomocníků Claude Code
+.claude/worktrees/

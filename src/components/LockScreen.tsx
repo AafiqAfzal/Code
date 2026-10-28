@@ -24,10 +24,10 @@ export function LockScreen({ onUnlock }: { onUnlock: () => void }) {
           onChange={(e) => { setPin(e.target.value.replace(/\D/g, '')); setError('') }} onKeyDown={(e) => e.key === 'Enter' && submit()} />
         {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
         <button className="btn-primary mt-4 w-full justify-center" onClick={submit}>Odemknout</button>
-        <button className="mt-3 text-xs text-slate-400 hover:underline" onClick={() => setForgot(!forgot)}>Zapomněl jsem PIN</button>
+        <button className="mt-3 text-xs text-slate-400 hover:underline" onClick={() => setForgot(!forgot)}>Zapomenutý PIN</button>
         {forgot && (
           <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-3 text-left text-xs text-slate-600">
-            <p>PIN nelze obnovit. Můžete ale nahrát zálohu ze složky Dokumenty → Pedagogický deník → zalohy: data se obnoví ze zálohy a PIN se zruší.</p>
+            <p>PIN nelze obnovit. Můžete ale nahrát zálohu{isDesktop() ? ' ze složky Dokumenty → Pedagogický deník → zalohy' : ' (soubor .json, který jste si stáhli)'}: data se obnoví ze zálohy a PIN se zruší.</p>
             <label className="btn-secondary btn-sm mt-2">Obnovit ze zálohy a zrušit PIN
               <input type="file" accept=".json" className="hidden" onChange={async (e) => {
                 const f = e.target.files?.[0]; if (!f) return

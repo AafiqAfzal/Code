@@ -13,6 +13,12 @@ export function isoDate(d: Date) {
   return format(d, 'yyyy-MM-dd')
 }
 
+/** Číslo s desetinnou čárkou (2,25) */
+export function fmtNum(n: number | undefined, digits = 2): string {
+  if (n == null || !Number.isFinite(n)) return ''
+  return n.toLocaleString('cs-CZ', { maximumFractionDigits: digits })
+}
+
 export function todayISO() {
   return isoDate(new Date())
 }

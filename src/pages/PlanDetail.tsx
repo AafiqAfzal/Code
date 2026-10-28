@@ -95,7 +95,7 @@ export function PlanDetail() {
                 <button className="btn-ghost btn-sm" onClick={() => db.planItems.update(i.id, { level: i.level === 0 ? 1 : 0 })} title="Nadpis / téma">{i.level === 0 ? 'T' : 'N'}</button>
                 <button className="btn-ghost btn-sm" onClick={() => move(i, -1)}><ArrowUp size={12} /></button>
                 <button className="btn-ghost btn-sm" onClick={() => move(i, 1)}><ArrowDown size={12} /></button>
-                <button className="btn-ghost btn-sm text-red-600" onClick={() => db.planItems.delete(i.id)}><Trash2 size={12} /></button>
+                <button className="btn-ghost btn-sm text-red-600" onClick={() => { if (confirm(`Smazat ${i.level === 0 ? 'nadpis' : 'téma'} „${i.text}“?`)) db.planItems.delete(i.id) }}><Trash2 size={12} /></button>
               </span>
             </li>
           ))}

@@ -5,7 +5,7 @@ import { ArrowLeft, Printer } from 'lucide-react'
 import { db } from '../db/schema'
 import { useCategories, useClasses, useGroups, useMyGroups, useScale, useSettings, useStudents, useSubjects } from '../components/hooks'
 import { PageHeader } from '../components/ui'
-import { NOTE_KINDS, fmtDate, fullName, todayISO } from '../lib/format'
+import { NOTE_KINDS, fmtDate, fullName, todayISO, fmtNum } from '../lib/format'
 import { effectiveGrade, percentOf, proposedGrade, weightedAverage } from '../lib/grading'
 import { TERM_LABEL, currentTerm, termRange, type Term } from '../lib/terms'
 
@@ -80,9 +80,9 @@ export function PrintReportPage() {
             <div className="flex items-start justify-between border-b border-slate-300 pb-2 mb-3">
               <div>
                 <div className="text-lg font-bold">{fullName(s)} <span className="font-normal text-slate-500">· {cls?.name ?? ''}</span></div>
-                <div className="text-slate-600">{subject?.name} · {settings?.schoolYear} · {settings?.schoolName}</div>
+                <div className="text-slate-600">{[subject?.name, settings?.schoolYear, settings?.schoolName].filter(Boolean).join(' · ')}</div>
               </div>
-              <div className="text-right text-xs text-slate-500">Vyučující: {settings?.teacherName}<br />Vytištěno {fmtDate(todayISO())} · {TERM_LABEL[activeTerm]} ({fmtDate(dateFrom)} – {fmtDate(dateTo)})</div>
+              <div className="text-right text-xs text-slate-500">{settings?.teacherName && <>Vyučující: {settings.teacherName}<br /></>}Vytištěno {fmtDate(todayISO())} · {TERM_LABEL[activeTerm]} ({fmtDate(dateFrom)} – {fmtDate(dateTo)})</div>
             </div>
             {opts.grades && (
               <section className="mb-3">
@@ -90,10 +90,10 @@ export function PrintReportPage() {
                 {mine.length === 0 ? <p className="text-slate-500">Zatím bez známek.</p> : (
                   <table className="table text-xs">
                     <thead><tr><th>Datum</th><th>Hodnocení</th><th>Kategorie</th><th className="text-center">Váha</th><th className="text-center">Výsledek</th></tr></thead>
-                    <tbody>{mine.map((a) => <tr key={a.id}><td>{fmtDate(a.date)}</td><td>{a.title}{a.note ? <span className="text-slate-400"> – {a.note}</span> : ''}</td><td>{catName(a.categoryId)}</td><td className="text-center">{a.weight}</td><td className="text-center font-bold">{a.absent ? 'N' : effectiveGrade(a, scale)}{percentOf(a) != null && !a.absent ? <span className="font-normal text-slate-500"> ({a.points}/{a.maxPoints}, {percentOf(a)} %)</span> : ''}</td></tr>)}</tbody>
+                    <tbody>{mine.map((a) => <tr key={a.id}><td>{fmtDate(a.date)}</td><td>{a.title}{a.note ? <span className="text-slate-400"> – {a.note}</span> : ''}</td><td>{catName(a.categoryId)}</td><td className="text-center">{a.weight}</td><td className="text-center font-bold">{a.absent ? 'N' : effectiveGrade(a, scale)}{percentOf(a) != null && !a.absent ? <span className="font-normal text-slate-500"> ({a.points}/{a.maxPoints}, {fmtNum(percentOf(a), 1)} %)</span> : ''}</td></tr>)}</tbody>
                   </table>
                 )}
-                {avg != null && <p className="mt-1">Vážený průměr: <b>{avg}</b> · odpovídá známce <b>{proposedGrade(avg)}</b></p>}
+                {avg != null && <p className="mt-1">Vážený průměr: <b>{fmtNum(avg)}</b> · odpovídá známce <b>{proposedGrade(avg)}</b></p>}
               </section>
             )}
             {opts.absence && (

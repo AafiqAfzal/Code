@@ -62,6 +62,8 @@ export function Dashboard() {
     if (!found) return
     try { await importBackup(new File([found.text], found.name, { type: 'application/json' }), 'replace'); setRestoreMsg('Data obnovena.'); location.reload() } catch (e) { setRestoreMsg(`Obnova selhala: ${(e as Error).message}`) }
   }
+  // ve státní svátek a o prázdninách se pravidelné hodiny nekonají (výjimky a suplování ano)
+  const dayFree = !!holidayName(today) || !!vacation
   const birthdays = students.map((s) => ({ s, d: daysToBirthday(s.birthDate) })).filter((x) => x.d != null && x.d <= 7).sort((a, b) => a.d! - b.d!)
 
   return (
@@ -141,14 +143,15 @@ export function Dashboard() {
                     {s.title && <span className="text-slate-400">{s.title}</span>}
                   </li>
                 ) : (
-                  <li key={i} className={`flex items-center gap-3 py-2 text-sm ${s.status === 'cancelled' ? 'opacity-60' : ''}`}>
+                  <li key={i} className={`flex items-center gap-3 py-2 text-sm ${s.status === 'cancelled' || (dayFree && !s.change) ? 'opacity-60' : ''}`}>
                     <span className="w-28 text-slate-500">{s.lessonNumber}. h <span className="text-xs">{s.kind === 'krouzek' && s.timeFrom && s.timeTo ? `${s.timeFrom}–${s.timeTo}` : lessonRange(s.lessonNumber)}</span></span>
                     <Badge className={s.kind === 'krouzek' ? 'bg-purple-100 text-purple-800' : s.status === 'substitution' ? 'bg-amber-100 text-amber-900' : 'bg-blue-100 text-blue-800'}>{s.kind === 'krouzek' ? 'Kroužek' : s.status === 'substitution' ? `Supl. ${s.change?.title?.trim() || subjectName(s.subjectId) || ''}` : subjectName(s.subjectId)}</Badge>
                     <span className={`font-medium ${s.status === 'cancelled' ? 'line-through' : ''}`}>{s.kind === 'krouzek' ? s.title : groupName(s.groupId) ?? className(s.classId) ?? s.title ?? ''}{(s.extraGroupIds ?? []).map((id) => ` + ${groupName(id) ?? ''}`).join('')}</span>
                     {s.room && <span className="text-slate-400">uč. {s.room}</span>}
                     {s.status === 'cancelled' && <span className="text-xs text-red-700">odpadá{s.reason ? `: ${s.reason}` : ''}</span>}
                     {s.status === 'substitution' && s.change?.note && <span className="text-xs text-amber-700">{s.change.note}</span>}
-                    {s.status !== 'cancelled' && (loggedSlot(s) ? <span className="ml-auto inline-flex items-center gap-1 text-xs text-green-700" title={loggedSlot(s)!.topic}><Check size={14} /> zapsáno</span> : <Link to={`/zapisy?groupId=${s.groupId ?? ''}&classId=${s.classId ?? ''}&subjectId=${subjectIdOf(s)}&lesson=${s.lessonNumber}&extra=${(s.extraGroupIds ?? []).join(',')}${s.kind === 'suplovani' ? `&subst=1&subjectName=${encodeURIComponent(s.change?.title ?? '')}` : ''}`} className="ml-auto btn-primary btn-sm">Zapsat hodinu</Link>)}
+                    {dayFree && !s.change && s.status !== 'cancelled' && <span className="ml-auto text-xs text-slate-500">nekoná se ({holidayName(today) ? 'svátek' : 'prázdniny'})</span>}
+                    {s.status !== 'cancelled' && !(dayFree && !s.change) && (loggedSlot(s) ? <span className="ml-auto inline-flex items-center gap-1 text-xs text-green-700" title={loggedSlot(s)!.topic}><Check size={14} /> zapsáno</span> : <Link to={`/zapisy?groupId=${s.groupId ?? ''}&classId=${s.classId ?? ''}&subjectId=${subjectIdOf(s)}&lesson=${s.lessonNumber}&extra=${(s.extraGroupIds ?? []).join(',')}${s.kind === 'suplovani' ? `&subst=1&subjectName=${encodeURIComponent(s.change?.title ?? '')}` : ''}`} className="ml-auto btn-primary btn-sm">Zapsat hodinu</Link>)}
                   </li>
                 ))}
               </ul>
