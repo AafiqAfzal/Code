@@ -4,6 +4,7 @@ export interface ImportRow {
   className?: string
   firstName?: string
   lastName?: string
+  /** undefined = prázdná buňka (členství ve skupinách se nemění), '' = „-“ (výslovně bez skupiny) */
   group?: string
   catalogNumber?: number
   gradeLevel?: number
@@ -162,7 +163,8 @@ export function applyMapping(rows: Record<string, unknown>[], m: ColumnMapping, 
       }
       if (m.group) {
         const g = String(raw[m.group] ?? '').trim()
-        out.group = /^[-–—.x]*$/i.test(g) ? '' : g // "-" = bez skupiny
+        // prázdná buňka = beze změny; „-“, „–“, „x“, „.“ = výslovně bez skupiny
+        if (g) out.group = NO_GROUP_RE.test(g) ? '' : g
       }
       if (m.gradeLevel) {
         const n = Number(String(raw[m.gradeLevel] ?? '').replace(/\D/g, ''))
@@ -178,6 +180,34 @@ export function applyMapping(rows: Record<string, unknown>[], m: ColumnMapping, 
       return out
     })
     .filter((r) => r.lastName || r.firstName)
+}
+
+/** Značky „bez skupiny“ ve sloupci Skupina: -, –, —, x, . (i opakované). */
+export const NO_GROUP_RE = /^[-–—.x×]+$/i
+
+export type CellValue =
+  | { kind: 'empty' }
+  | { kind: 'absent' }
+  | { kind: 'grade'; grade: number }
+  | { kind: 'points'; points: number }
+  | { kind: 'invalid'; raw: string }
+
+/**
+ * Hodnota buňky se známkou. Bez maxPoints se čeká známka 1–5 nebo „N“ (nehodnocen),
+ * s maxPoints nezáporné číslo bodů (i s desetinnou čárkou „7,5“). Cokoli jiného
+ * („1-“, „2+“, „výborně“…) je neplatné a import to přeskočí.
+ */
+export function parseAssessmentCell(v: unknown, maxPoints?: number): CellValue {
+  const raw = String(v ?? '').trim()
+  if (!raw) return { kind: 'empty' }
+  if (/^n$/i.test(raw)) return { kind: 'absent' }
+  if (maxPoints) {
+    if (!/^\d+([.,]\d+)?$/.test(raw)) return { kind: 'invalid', raw }
+    const p = Number(raw.replace(',', '.'))
+    return Number.isFinite(p) ? { kind: 'points', points: p } : { kind: 'invalid', raw }
+  }
+  const m = raw.match(/^([1-5])([.,]0+)?$/)
+  return m ? { kind: 'grade', grade: Number(m[1]) } : { kind: 'invalid', raw }
 }
 
 /** „Žena“/„Muž“/„F“/„M“/„dívka“/„chlapec“ → M/F */

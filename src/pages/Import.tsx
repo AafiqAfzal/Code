@@ -1,12 +1,13 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { FileSpreadsheet, FileText, ClipboardList } from 'lucide-react'
-import { db } from '../db/schema'
+import { db, type Assessment, type Student } from '../db/schema'
 import { useCategories, useClasses, useGroups, useStudents, useSubjects } from '../components/hooks'
 import { Field, PageHeader } from '../components/ui'
 import { SettingsTabs } from '../components/Layout'
 import { fmtDate, fullName, todayISO } from '../lib/format'
-import { applyMapping, gradeFromClassName, guessMapping, parseWorkbook, splitFullName, type ColumnMapping, type ImportRow, type ParsedSheet } from '../lib/excelImport'
+import { applyMapping, guessMapping, parseAssessmentCell, parseWorkbook, splitFullName, type ColumnMapping, type ImportRow, type ParsedSheet } from '../lib/excelImport'
+import { describeSummary, planStudentImport, rowsTouchingGroups, runStudentImport } from '../lib/studentImport'
 import { extractDocx, extractPlainText, type ExtractedItem } from '../lib/docxImport'
 
 export function ImportPage() {
@@ -47,66 +48,41 @@ function ExcelImport() {
   const [defaultClass, setDefaultClass] = useState('')
   const [tagForeign, setTagForeign] = useState(false)
   const [result, setResult] = useState<string | null>(null)
+  const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const running = useRef(false)
   const sheet = sheets[sheetIdx]
   const rows: ImportRow[] = sheet ? applyMapping(sheet.rows, mapping, lastNameFirst) : []
+  const subject = subjects.find((s) => s.id === subjectId)
+  const groupRows = rowsTouchingGroups(rows)
+  const needSubject = groupRows > 0 && !subject
+  const opts = { subject, groupScope, defaultClass, tagForeign }
+  // náhled (nanečisto) nad aktuálním stavem databáze – nic neukládá
+  const plan = sheet && !result ? planStudentImport(rows, { students, classes, groups }, opts) : undefined
 
   const onFile = async (f: File) => {
     let parsed: ParsedSheet[]
     try { parsed = await parseWorkbook(f) } catch (e) { alert(`Soubor nejde načíst: ${(e as Error).message}`); return }
-    setSheets(parsed); setSheetIdx(0); setMapping(guessMapping(parsed[0]?.headers ?? [])); setResult(null)
+    setSheets(parsed); setSheetIdx(0); setMapping(guessMapping(parsed[0]?.headers ?? [])); setResult(null); setError('')
   }
   const selectSheet = (i: number) => { setSheetIdx(i); setMapping(guessMapping(sheets[i].headers)) }
 
   const doImport = async () => {
-    setBusy(true)
-    const subj = subjects.find((s) => s.id === (subjectId ?? subjects[0]?.id))
-    let created = 0, updated = 0, newClasses = 0, newGroups = 0, moved = 0
-    const classCache = new Map(classes.map((c) => [c.name.toLowerCase(), c.id]))
-    const groupCache = new Map(groups.map((g) => [g.name.toLowerCase(), g]))
-    const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
-    await db.transaction('rw', db.classes, db.students, db.groups, async () => {
-      for (const r of rows) {
-        const cname = (r.className || defaultClass).trim()
-        let classId: number | undefined
-        if (cname) {
-          classId = classCache.get(cname.toLowerCase())
-          if (!classId) { classId = await db.classes.add({ name: cname, gradeLevel: r.gradeLevel || gradeFromClassName(cname) }); classCache.set(cname.toLowerCase(), classId); newClasses++ }
-        }
-        const isForeign = !!r.citizenship && !/^(cesk|czech|cr$|čr$)/i.test(fold(r.citizenship))
-        const extraTags = tagForeign && isForeign ? ['OMJ'] : []
-        const existing = students.find((s) => fold(s.lastName) === fold(r.lastName ?? '') && fold(s.firstName) === fold(r.firstName ?? '') && (!classId || !s.classId || s.classId === classId))
-        let studentId: number
-        if (existing) { studentId = existing.id; await db.students.update(studentId, { classId: classId ?? existing.classId, catalogNumber: r.catalogNumber ?? existing.catalogNumber, birthDate: r.birthDate ?? existing.birthDate, citizenship: r.citizenship ?? existing.citizenship, gender: r.gender ?? existing.gender, tags: Array.from(new Set([...existing.tags, ...extraTags])), active: true }); updated++ }
-        else { studentId = await db.students.add({ firstName: r.firstName ?? '', lastName: r.lastName ?? '', classId, catalogNumber: r.catalogNumber, birthDate: r.birthDate, citizenship: r.citizenship, gender: r.gender, tags: extraTags, active: true }); created++ }
-        if (r.group) {
-          const grade = r.gradeLevel || (cname ? gradeFromClassName(cname) : 0)
-          const gname = groupScope === 'class' && cname ? `${subj?.abbreviation ?? ''} ${cname} – sk. ${r.group}`.trim() : `${subj?.abbreviation ?? ''} ${grade ? `${grade}. r.` : ''} – sk. ${r.group}`.trim()
-          let g = groupCache.get(gname.toLowerCase())
-          if (!g) { const id = await db.groups.add({ name: gname, subjectId: subj?.id, gradeLevel: grade, studentIds: [] }); g = { id, name: gname, subjectId: subj?.id, gradeLevel: grade, studentIds: [] }; groupCache.set(gname.toLowerCase(), g); newGroups++ }
-          if (!g.studentIds.includes(studentId)) { g.studentIds = [...g.studentIds, studentId]; await db.groups.update(g.id, { studentIds: g.studentIds }) }
-          // přesun: odebrat z ostatních skupin stejného předmětu v ročníku
-          for (const other of groupCache.values()) {
-            if (other.id !== g.id && other.subjectId === subj?.id && other.gradeLevel === grade && other.studentIds.includes(studentId)) { other.studentIds = other.studentIds.filter((x) => x !== studentId); await db.groups.update(other.id, { studentIds: other.studentIds }); moved++ }
-          }
-        } else if (r.group === '' && mapping.group) {
-          // „-“ = bez skupiny: odebrat ze všech skupin předmětu v ročníku
-          const grade = r.gradeLevel || (cname ? gradeFromClassName(cname) : 0)
-          for (const other of groupCache.values()) {
-            if (other.subjectId === subj?.id && other.gradeLevel === grade && other.studentIds.includes(studentId)) { other.studentIds = other.studentIds.filter((x) => x !== studentId); await db.groups.update(other.id, { studentIds: other.studentIds }); moved++ }
-          }
-        }
-      }
-    })
-    setBusy(false)
-    setResult(`Hotovo: ${created} nových žáků, ${updated} aktualizovaných, ${newClasses} nových tříd, ${newGroups} nových skupin${moved ? `, ${moved} přesunů mezi skupinami` : ''}.`)
+    if (running.current || needSubject || !rows.length) return
+    running.current = true; setBusy(true); setError('')
+    try {
+      const s = await runStudentImport(rows, opts)
+      setResult(`Hotovo: ${describeSummary(s)}.`)
+    } catch (e) {
+      setError(`Import se nepodařil, nic nebylo uloženo: ${(e as Error).message}`)
+    } finally { running.current = false; setBusy(false) }
   }
 
   return (
     <div className="space-y-4">
       <div className="card card-body">
-        <p className="text-sm text-slate-600 mb-3">Nahrajte soubor .xlsx nebo .csv (starší .xls nejdřív v Excelu uložte jako .xlsx), např. export seznamu žáků ze Školy online. Aplikace sama pozná sloupce <b>Třída</b>, <b>Jméno</b>, <b>Příjmení</b>, <b>Skupina</b>, <b>Ročník</b>, <b>Datum narození</b> a <b>Občanství</b> (export „Karta žáka – seznam“); hodnota skupiny „-“ znamená bez skupiny; přiřazení lze upravit níže. Opakovaný import stejného žáka jej neduplikuje, jen aktualizuje.</p>
-        <input type="file" accept=".xlsx,.csv" className="text-sm" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
+        <p className="text-sm text-slate-600 mb-3">Nahrajte soubor .xlsx nebo .csv (starší .xls nejdřív v Excelu uložte jako .xlsx), např. export seznamu žáků ze Školy online. Aplikace sama pozná sloupce <b>Třída</b>, <b>Jméno</b>, <b>Příjmení</b>, <b>Skupina</b>, <b>Ročník</b>, <b>Datum narození</b> a <b>Občanství</b> (export „Karta žáka – seznam“); ve sloupci Skupina znamená „-“ bez skupiny (žák se ze skupin předmětu vyřadí), prázdná buňka skupiny nemění; přiřazení sloupců lze upravit níže. Opakovaný import stejného žáka jej neduplikuje, jen aktualizuje (páruje se podle jména a třídy, s datem narození i při změně třídy).</p>
+        <input type="file" accept=".xlsx,.csv" className="text-sm" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) onFile(f) }} />
       </div>
       {sheet && (
         <>
@@ -125,7 +101,7 @@ function ExcelImport() {
             {mapping.citizenship && <label className="text-sm flex items-center gap-2 pt-5"><input type="checkbox" checked={tagForeign} onChange={(e) => setTagForeign(e.target.checked)} /> Žákům s jiným než českým občanstvím přidat štítek OMJ</label>}
             {mapping.group && (
               <>
-                <Field label="Předmět skupin"><select className="input" value={subjectId ?? subjects[0]?.id ?? ''} onChange={(e) => setSubjectId(Number(e.target.value))}>{subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
+                <Field label="Předmět skupin"><select className={`input ${needSubject ? 'border-red-400' : ''}`} value={subjectId ?? ''} onChange={(e) => setSubjectId(Number(e.target.value) || undefined)}><option value="">— vyberte předmět —</option>{subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
                 <Field label="Skupiny tvořit">
                   <select className="input" value={groupScope} onChange={(e) => setGroupScope(e.target.value as 'grade' | 'class')}>
                     <option value="class">v rámci třídy (6.A sk. 1, 6.B sk. 1…)</option>
@@ -139,13 +115,22 @@ function ExcelImport() {
             <div className="px-4 py-2 border-b border-slate-200 text-sm font-semibold">Náhled ({rows.length} žáků)</div>
             <table className="table">
               <thead><tr><th>Třída</th><th>Roč.</th><th>Příjmení</th><th>Jméno</th><th>Skupina</th><th>Narozen/a</th><th>Občanství</th><th>Pohl.</th><th>#</th></tr></thead>
-              <tbody>{rows.slice(0, 200).map((r, i) => <tr key={i}><td>{r.className || defaultClass}</td><td>{r.gradeLevel ?? ''}</td><td>{r.lastName}</td><td>{r.firstName}</td><td>{r.group}</td><td>{fmtDate(r.birthDate)}</td><td>{r.citizenship}</td><td>{r.gender === 'F' ? 'D' : r.gender === 'M' ? 'CH' : ''}</td><td>{r.catalogNumber}</td></tr>)}</tbody>
+              <tbody>{rows.slice(0, 200).map((r, i) => <tr key={i}><td>{r.className || defaultClass}</td><td>{r.gradeLevel ?? ''}</td><td>{r.lastName}</td><td>{r.firstName}</td><td>{r.group === '' ? <span className="text-slate-400">bez skupiny</span> : r.group}</td><td>{fmtDate(r.birthDate)}</td><td>{r.citizenship}</td><td>{r.gender === 'F' ? 'D' : r.gender === 'M' ? 'CH' : ''}</td><td>{r.catalogNumber}</td></tr>)}</tbody>
             </table>
+            {plan && (
+              <div className="px-4 py-3 border-t border-slate-200 text-sm" data-testid="import-summary">
+                <div><b>Co import udělá:</b> {describeSummary(plan.summary)}.</div>
+                {needSubject && <div className="text-red-600 mt-1">{groupRows} řádků mění skupiny – vyberte nahoře „Předmět skupin“.</div>}
+                {plan.summary.notes.length > 0 && (
+                  <ul className="mt-1 text-amber-700 list-disc pl-5">{plan.summary.notes.slice(0, 30).map((n, i) => <li key={i}>{n}</li>)}{plan.summary.notes.length > 30 && <li>… a další ({plan.summary.notes.length - 30})</li>}</ul>
+                )}
+              </div>
+            )}
             <div className="p-3 flex items-center justify-between border-t border-slate-200">
-              <span className="text-sm text-green-700">{result}</span>
+              <span className={`text-sm ${error ? 'text-red-600' : 'text-green-700'}`}>{error || result}</span>
               <div className="flex gap-2">
                 {result && <button className="btn-secondary" onClick={() => navigate('/tridy')}>Přejít na třídy</button>}
-                <button className="btn-primary" disabled={busy || rows.length === 0 || !!result} onClick={doImport}>Importovat {rows.length} žáků</button>
+                <button className="btn-primary" disabled={busy || rows.length === 0 || !!result || needSubject} onClick={doImport}>{busy ? 'Importuji…' : `Importovat ${rows.length} žáků`}</button>
               </div>
             </div>
           </div>
@@ -247,13 +232,16 @@ function GradesImport() {
   const [groupId, setGroupId] = useState<number | undefined>()
   const [cols, setCols] = useState<Record<string, { use: boolean; categoryId: number; date: string; maxPoints?: number }>>({})
   const [result, setResult] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const running = useRef(false)
   const sheet = sheets[sheetIdx]
   const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
 
   const onFile = async (f: File) => {
     let parsed: ParsedSheet[]
     try { parsed = await parseWorkbook(f) } catch (e) { alert(`Soubor nejde načíst: ${(e as Error).message}`); return }
-    setSheets(parsed); setSheetIdx(0); setResult('')
+    setSheets(parsed); setSheetIdx(0); setResult(''); setError('')
     init(parsed[0])
   }
   const init = (sh?: ParsedSheet) => {
@@ -266,53 +254,89 @@ function GradesImport() {
       if (used.has(h)) continue
       const values = sh.rows.map((r) => String(r[h] ?? '').trim()).filter(Boolean)
       if (!values.length) continue
-      const nums = values.map(Number).filter((n) => !isNaN(n))
-      const looksLikeGrades = nums.length === values.filter((v) => v.toUpperCase() !== 'N').length && nums.every((n) => n >= 1 && n <= 5 && Number.isInteger(n))
+      const nums = values.filter((v) => /^\d+([.,]\d+)?$/.test(v)).map((v) => Number(v.replace(',', '.')))
       const maxGuess = (h.match(/\/\s*(\d+)/) ?? [])[1]
-      next[h] = { use: nums.length > 0, categoryId: categories[1]?.id ?? categories[0]?.id, date: todayISO(), maxPoints: looksLikeGrades ? undefined : maxGuess ? Number(maxGuess) : Math.max(...nums) || undefined }
+      // nečíselné hodnoty („2+“, „1-“) o typu sloupce nerozhodují – import je přeskočí
+      const looksLikeGrades = !maxGuess && nums.every((n) => n >= 1 && n <= 5 && Number.isInteger(n))
+      next[h] = { use: nums.length > 0 || values.some((v) => /^n$/i.test(v)), categoryId: categories[1]?.id ?? categories[0]?.id, date: todayISO(), maxPoints: looksLikeGrades ? undefined : maxGuess ? Number(maxGuess) : Math.max(...nums) || undefined }
     }
     setCols(next)
   }
   const roster = groupId ? students.filter((s) => groups.find((g) => g.id === groupId)?.studentIds.includes(s.id)) : students
-  const matchStudent = (row: Record<string, unknown>) => {
-    let last = nameCols.lastName ? String(row[nameCols.lastName] ?? '') : ''
-    let first = nameCols.firstName ? String(row[nameCols.firstName] ?? '') : ''
+  /** Spáruje řádek se žákem; jen jednoznačně (bez jména jen při jedinečném příjmení v cílové skupině). */
+  const matchStudent = (row: Record<string, unknown>): { student?: Student; reason?: string } => {
+    let last = nameCols.lastName ? String(row[nameCols.lastName] ?? '').trim() : ''
+    let first = nameCols.firstName ? String(row[nameCols.firstName] ?? '').trim() : ''
     if (nameCols.fullName && !(last && first)) { const sp = splitFullName(String(row[nameCols.fullName] ?? '')); last ||= sp.lastName; first ||= sp.firstName }
-    if (!last) return undefined
-    return roster.find((s) => fold(s.lastName) === fold(last) && (!first || fold(s.firstName) === fold(first)))
-      ?? roster.find((s) => fold(s.lastName) === fold(first) && fold(s.firstName) === fold(last))
+    if (!last) return { reason: 'chybí jméno' }
+    let hits = first
+      ? roster.filter((s) => fold(s.lastName) === fold(last) && fold(s.firstName) === fold(first))
+      : roster.filter((s) => fold(s.lastName) === fold(last))
+    if (!hits.length && first) hits = roster.filter((s) => fold(s.lastName) === fold(first) && fold(s.firstName) === fold(last))
+    if (hits.length === 1) return { student: hits[0] }
+    if (hits.length > 1) return { reason: first ? 'více žáků se stejným jménem' : 'příjmení má více žáků – chybí jméno' }
+    return { reason: 'nenalezen' }
   }
-  const rows = sheet ? sheet.rows.map((r) => ({ r, student: matchStudent(r) })) : []
+  const rows = sheet ? sheet.rows.map((r) => ({ r, ...matchStudent(r) })) : []
   const active = Object.entries(cols).filter(([, c]) => c.use)
+  const invalidCount = rows.reduce((n, { r, student }) => n + (student ? active.filter(([h, c]) => parseAssessmentCell(r[h], c.maxPoints).kind === 'invalid').length : 0), 0)
 
   const doImport = async () => {
     const subj = subjectId ?? subjects[0]?.id
-    if (!subj) return
-    let n = 0
-    for (const { r, student } of rows) {
-      if (!student) continue
-      for (const [h, c] of active) {
-        const raw = String(r[h] ?? '').trim()
-        if (!raw) continue
-        const cat = categories.find((x) => x.id === c.categoryId)
-        const base = { studentId: student.id, subjectId: subj, groupId, categoryId: c.categoryId, date: c.date, title: h, weight: cat?.weight ?? 1 }
-        if (raw.toUpperCase() === 'N') await db.assessments.add({ ...base, absent: true })
-        else if (c.maxPoints) await db.assessments.add({ ...base, points: Number(raw.replace(',', '.')), maxPoints: c.maxPoints })
-        else { const g = Number(raw); if (g >= 1 && g <= 5) await db.assessments.add({ ...base, grade: Math.round(g) }) }
-        n++
-      }
-    }
-    setResult(`Naimportováno ${n} známek pro ${rows.filter((x) => x.student).length} žáků.`)
+    if (!subj || running.current) return
+    running.current = true; setBusy(true); setError('')
+    try {
+      const st = await db.transaction('rw', db.assessments, async () => {
+        let added = 0, updated = 0, same = 0, invalid = 0
+        for (const { r, student } of rows) {
+          if (!student) continue
+          const existing = await db.assessments.where('[studentId+subjectId]').equals([student.id, subj]).toArray()
+          for (const [h, c] of active) {
+            const v = parseAssessmentCell(r[h], c.maxPoints)
+            if (v.kind === 'empty') continue
+            if (v.kind === 'invalid') { invalid++; continue }
+            const cat = categories.find((x) => x.id === c.categoryId)
+            const value: Partial<Assessment> = v.kind === 'absent' ? { absent: true } : v.kind === 'points' ? { points: v.points, maxPoints: c.maxPoints } : { grade: v.grade }
+            // stejný žák + předmět + datum + název + kategorie = totéž hodnocení → přepsat, ne přidat
+            const prev = existing.find((a) => a.date === c.date && a.title === h && a.categoryId === c.categoryId)
+            if (prev) {
+              const rest: Assessment = { ...prev }
+              delete rest.grade; delete rest.points; delete rest.maxPoints; delete rest.absent
+              const next: Assessment = { ...rest, ...value, groupId: groupId ?? prev.groupId }
+              const key = (a: Assessment) => JSON.stringify([a.grade, a.points, a.maxPoints, !!a.absent, a.groupId])
+              if (key(next) === key(prev)) { same++; continue }
+              await db.assessments.put(next)
+              Object.assign(prev, next)
+              updated++
+            } else {
+              const base = { studentId: student.id, subjectId: subj, groupId, categoryId: c.categoryId, date: c.date, title: h, weight: cat?.weight ?? 1 }
+              const id = await db.assessments.add({ ...base, ...value } as Assessment)
+              existing.push({ ...base, ...value, id } as Assessment)
+              added++
+            }
+          }
+        }
+        return { added, updated, same, invalid }
+      })
+      const parts = [`Uloženo ${st.added + st.updated} známek (${st.added} nových, ${st.updated} přepsaných)`]
+      if (st.same) parts.push(`${st.same} už v aplikaci bylo beze změny`)
+      if (st.invalid) parts.push(`${st.invalid} neplatných hodnot přeskočeno`)
+      const unmatched = rows.filter((x) => !x.student).length
+      if (unmatched) parts.push(`${unmatched} nespárovaných řádků přeskočeno`)
+      setResult(parts.join(', ') + '.')
+    } catch (e) {
+      setError(`Import se nepodařil, nic nebylo uloženo: ${(e as Error).message}`)
+    } finally { running.current = false; setBusy(false) }
   }
 
   return (
     <div className="space-y-4">
       <div className="card card-body">
-        <p className="text-sm text-slate-600 mb-3">Tabulka: v každém řádku žák (příjmení a jméno), v dalších sloupcích jednotlivá hodnocení. Hodnota 1–5 = známka, jiné číslo = body (zadejte max. bodů), „N“ = nehodnocen. Nejdřív vyberte předmět a skupinu, aby se žáci správně spárovali.</p>
+        <p className="text-sm text-slate-600 mb-3">Tabulka: v každém řádku žák (příjmení a jméno), v dalších sloupcích jednotlivá hodnocení. Hodnota 1–5 = známka, jiné číslo = body (zadejte max. bodů, desetinná čárka je v pořádku), „N“ = nehodnocen. Jiné hodnoty („1-“, „2+“…) se přeskočí. Opakovaný import téhož souboru známky nezdvojí – stejné hodnocení (žák, předmět, datum, název, kategorie) se přepíše. Nejdřív vyberte předmět a skupinu, aby se žáci správně spárovali.</p>
         <div className="flex flex-wrap items-end gap-3">
           <Field label="Předmět"><select className="input w-auto" value={subjectId ?? subjects[0]?.id ?? ''} onChange={(e) => setSubjectId(Number(e.target.value))}>{subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
           <Field label="Skupina"><select className="input w-auto" value={groupId ?? ''} onChange={(e) => setGroupId(Number(e.target.value) || undefined)}><option value="">všichni žáci</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select></Field>
-          <input type="file" accept=".xlsx,.csv" className="text-sm" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
+          <input type="file" accept=".xlsx,.csv" className="text-sm" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) onFile(f) }} />
         </div>
       </div>
       {sheet && (
@@ -339,22 +363,22 @@ function GradesImport() {
             </table>
           </div>
           <div className="card overflow-x-auto">
-            <div className="px-4 py-2 border-b border-slate-200 text-sm font-semibold">Spárování žáků: {rows.filter((x) => x.student).length} z {rows.length}</div>
+            <div className="px-4 py-2 border-b border-slate-200 text-sm font-semibold">Spárování žáků: {rows.filter((x) => x.student).length} z {rows.length}{invalidCount > 0 && <span className="ml-3 font-normal text-red-600">neplatných hodnot: {invalidCount} (přeskočí se)</span>}</div>
             <table className="table">
               <thead><tr><th>Řádek v tabulce</th><th>Žák v aplikaci</th>{active.map(([h]) => <th key={h}>{h}</th>)}</tr></thead>
-              <tbody>{rows.slice(0, 100).map(({ r, student }, i) => (
+              <tbody>{rows.slice(0, 100).map(({ r, student, reason }, i) => (
                 <tr key={i} className={student ? '' : 'bg-red-50'}>
                   <td>{[nameCols.lastName, nameCols.firstName, nameCols.fullName].filter(Boolean).map((k) => String(r[k!] ?? '')).join(' ')}</td>
-                  <td>{student ? fullName(student) : <span className="text-red-600">nenalezen – přeskočí se</span>}</td>
-                  {active.map(([h]) => <td key={h}>{String(r[h] ?? '')}</td>)}
+                  <td>{student ? fullName(student) : <span className="text-red-600">{reason} – přeskočí se</span>}</td>
+                  {active.map(([h, c]) => <td key={h} className={student && parseAssessmentCell(r[h], c.maxPoints).kind === 'invalid' ? 'text-red-600 line-through' : ''}>{String(r[h] ?? '')}</td>)}
                 </tr>
               ))}</tbody>
             </table>
             <div className="p-3 flex items-center justify-between border-t border-slate-200">
-              <span className="text-sm text-green-700">{result}</span>
+              <span className={`text-sm ${error ? 'text-red-600' : 'text-green-700'}`}>{error || result}</span>
               <div className="flex gap-2">
                 {result && <button className="btn-secondary" onClick={() => navigate(`/hodnoceni?subjectId=${subjectId ?? subjects[0]?.id}${groupId ? `&groupId=${groupId}` : ''}`)}>Otevřít hodnocení</button>}
-                <button className="btn-primary" disabled={!!result || !active.length || !rows.some((x) => x.student)} onClick={doImport}>Importovat známky</button>
+                <button className="btn-primary" disabled={busy || !!result || !active.length || !rows.some((x) => x.student)} onClick={doImport}>{busy ? 'Importuji…' : 'Importovat známky'}</button>
               </div>
             </div>
           </div>
