@@ -1,5 +1,16 @@
 # Změny
 
+## 3.0.8
+
+- Zasedací pořádek v desktopové verzi: přetahování žáků myší funguje (Windows ho dřív blokovalo); nově i přesun kliknutím – klik na žáka, pak na místo (prohození, klik na seznam = odsadit, Esc = zrušit); rychlé přesuny za sebou už žáky neztrácí
+- Hodnocení: známka z bodů odpovídá zobrazenému procentu (89,96 % → „90 %“ → 1); chybějící váha nerozbije průměr; váha 0 jde nastavit; sloupec s datem v druhém pololetí se zobrazí (přepne pololetí); stejný sloupec nejde přidat dvakrát; rychlé psaní kláves nezapíše známku dvakrát
+- Hodnocení a docházka: odkaz na skupinu (z Tříd, z karty žáka) otevře opravdu tu skupinu a předmět, i když se data ještě načítají
+- Zápisy z hodin: přepojení zápisu na jiné téma nebo smazání zápisu zruší odškrtnutí původního tématu (pokud ho neodškrtl jiný zápis); prázdné „Probrané učivo“ ohlásí chybu
+- Kalendář: suplování se v počtu hodin nepočítá dvakrát
+- Pracovní výkaz: přestávka na oběd se odečítá jen u dne delšího než 6 hodin (§ 88 zákoníku práce); ruční úpravy se ukládají samy a při přechodu na jinou stránku či měsíc se neztratí
+- Průvodce novým rokem: skupiny se přejmenují správně (6.A → 7.A, ne až 9.A), kroužky ročník nemění, výjimky v rozvrhu zadané na nový rok zůstanou, s odcházející třídou se smažou i její hodiny v rozvrhu; pojistka proti dvojímu spuštění; chyba se ohlásí
+- Rozepsaná práce: okno se změnami se při Esc nebo kliknutí vedle zeptá, zda zavřít bez uložení; automatický zámek PINem aplikaci jen skryje – po odemčení je vše, jak bylo
+
 ## 3.0.7
 
 - Zálohy: prázdná databáze se už automaticky nezálohuje, takže nepřepíše poslední dobrou zálohu; nabídka obnovy na prázdném přehledu vybere nejnovější neprázdnou zálohu

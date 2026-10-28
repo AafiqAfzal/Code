@@ -1,6 +1,6 @@
 [package]
 name = "pedagogicky-denik"
-version = "3.0.7"
+version = "3.0.8"
 description = "Pedagogický deník pro učitele ZŠ"
 edition = "2021"
 
