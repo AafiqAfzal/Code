@@ -81,7 +81,7 @@ z hlavní větve (v nastavení repozitáře zapněte Pages → Source: GitHub Ac
 
 React 19, TypeScript, Vite, Tailwind CSS 4, Dexie (IndexedDB), react-router, Tauri 2 (desktop),
 [mammoth](https://github.com/mwilliamson/mammoth.js) (čtení .docx),
-[SheetJS](https://sheetjs.com/) (čtení a zápis Excelu), date-fns, lucide-react.
+[ExcelJS](https://github.com/exceljs/exceljs) (čtení Excelu a šablona výkazu), [SheetJS](https://sheetjs.com/) (zápis Excelu), date-fns, lucide-react.
 
 ## Struktura
 

@@ -2,17 +2,17 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { db, type GradeCategory, type Settings, type Subject } from '../db/schema'
-import { DEFAULT_CATEGORIES, loadDemoData } from '../db/seed'
+import { loadDemoData, resetDefaultCategories } from '../db/seed'
 import { useCategories, useScale, useSettings, useSubjects } from '../components/hooks'
 import { ConfirmButton, Field, PageHeader, Toast, useToast } from '../components/ui'
-import { downloadBlob, exportBackup, importBackup, wipeAll } from '../lib/backup'
-import { isDesktop, runDailyAutoBackupForce, saveBackupAs } from '../lib/desktop'
+import { backupSummary, downloadBlob, exportBackup, wipeAll } from '../lib/backup'
+import { isDesktop, restoreBackup, runDailyAutoBackupForce, safetyBackup, saveBackupAs } from '../lib/desktop'
 import { DEFAULT_LUNCH_MINUTES, workdaySpan } from '../lib/workReport'
 import { PIN_RE, clearPin, setPin, verifyPin } from '../lib/pin'
 import { NewYearWizard } from '../components/NewYearWizard'
 import { SettingsTabs } from '../components/Layout'
 import { NATIONAL_SCHOOL_HOLIDAYS } from '../lib/holidays'
-import { WEEKDAYS, fmtDate } from '../lib/format'
+import { WEEKDAYS, fmtDate, todayISO } from '../lib/format'
 
 export function SettingsPage() {
   const settings = useSettings()
@@ -52,8 +52,15 @@ export function SettingsPage() {
   useEffect(() => { window.denik?.listBackups?.().then((l) => { setDocBackups(l); setDocBackup(l[0] ?? '') }).catch(() => {}) }, [])
   const restoreFromDocuments = async () => {
     if (!window.denik?.readBackup || !docBackup) return
-    if (!confirm(`Obnovit data ze zálohy ${docBackup}? Současná data v aplikaci se nahradí.`)) return
-    try { const text = await window.denik.readBackup(docBackup); await importBackup(new File([text], docBackup, { type: 'application/json' }), 'replace'); show('Data obnovena.'); setTimeout(() => location.reload(), 800) } catch (err) { alert(`Obnova selhala: ${(err as Error).message}`) }
+    try {
+      const text = await window.denik.readBackup(docBackup)
+      const sum = backupSummary(text)
+      const what = sum.records === 0 ? 'POZOR: tato záloha je prázdná (neobsahuje žáky ani záznamy).' : `Záloha obsahuje ${sum.students} žáků.`
+      if (!confirm(`Obnovit data ze zálohy ${docBackup}?\n${what}\n\nSoučasná data se nahradí. Před obnovou se uloží do složky záloh jako „…-pred-obnovou.json“.`)) return
+      const safety = await restoreBackup(new File([text], docBackup, { type: 'application/json' }))
+      show(safety ? 'Data obnovena. Předchozí stav je uložen jako záloha „pred-obnovou“.' : 'Data obnovena.')
+      setTimeout(() => location.reload(), 1200)
+    } catch (err) { alert(`Obnova selhala: ${(err as Error).message}`) }
   }
   const [hol, setHol] = useState({ name: 'Jarní prázdniny', from: '', to: '' })
   const counts = useLiveQuery(async () => ({ students: await db.students.count(), assessments: await db.assessments.count() }), [])
@@ -101,7 +108,7 @@ export function SettingsPage() {
           <div><h2 className="card-title">Hodnocení – {scale.name || 'Průběžné hodnocení 2026-27'}</h2><p className="text-xs text-slate-500">Kategorie s váhami a převod procent na známku. Upravte podle dokumentu Průběžné hodnocení 2026-27.</p></div>
           <div className="flex gap-2">
             <button className="btn-secondary btn-sm" onClick={() => db.gradeCategories.add({ name: 'Nová kategorie', weight: 1, color: '#64748b', order: (categories.at(-1)?.order ?? 0) + 1 })}><Plus size={14} /> Kategorie</button>
-            <ConfirmButton className="btn-secondary btn-sm" confirmLabel="Obnovit výchozí?" onConfirm={async () => { await db.gradeCategories.clear(); await db.gradeCategories.bulkAdd(DEFAULT_CATEGORIES) }}>Výchozí kategorie</ConfirmButton>
+            <ConfirmButton className="btn-secondary btn-sm" confirmLabel="Obnovit výchozí?" onConfirm={async () => { const kept = await resetDefaultCategories(); show(kept.length ? `Výchozí kategorie obnoveny. Ponechány, protože je používají známky: ${kept.join(', ')}` : 'Výchozí kategorie obnoveny.') }}>Výchozí kategorie</ConfirmButton>
           </div>
         </div>
         <table className="table mb-4"><thead><tr><th>Kategorie</th><th>Váha</th><th>Barva</th><th>Pořadí</th><th></th></tr></thead>
@@ -111,7 +118,7 @@ export function SettingsPage() {
               <td><input type="number" step="0.5" min={0} className="input w-20" defaultValue={c.weight} onBlur={(e) => updCat(c, { weight: Number(e.target.value) })} /></td>
               <td><input type="color" defaultValue={c.color} onChange={(e) => updCat(c, { color: e.target.value })} /></td>
               <td><input type="number" className="input w-16" defaultValue={c.order} onBlur={(e) => updCat(c, { order: Number(e.target.value) })} /></td>
-              <td className="text-right"><ConfirmButton onConfirm={() => db.gradeCategories.delete(c.id)}>Smazat</ConfirmButton></td>
+              <td className="text-right"><ConfirmButton onConfirm={async () => { const n = await db.assessments.filter((a) => a.categoryId === c.id).count(); if (n && !confirm(`Kategorii „${c.name}“ používá ${n} známek. Známky zůstanou, ale budou bez kategorie. Opravdu smazat?`)) return; await db.gradeCategories.delete(c.id) }}>Smazat</ConfirmButton></td>
             </tr>
           ))}</tbody></table>
         <div className="grid gap-3 md:grid-cols-5">
@@ -232,7 +239,7 @@ export function SettingsPage() {
         <p className="text-xs text-slate-500 mb-3">Data jsou uložena pouze v tomto prohlížeči (žáků: {counts?.students ?? 0}, známek: {counts?.assessments ?? 0}). Pravidelně si stahujte zálohu – např. na konci týdne – a uložte ji na bezpečné místo. Zálohu lze nahrát v jiném prohlížeči či počítači.</p>
         {isDesktop() && (
           <div className="mb-3 rounded border border-green-200 bg-green-50 p-3 text-xs text-green-900">
-            <b>Desktopová verze:</b> záloha se ukládá automaticky při spuštění (jednou denně) a při každém zavření aplikace do složky <code>{backupDir}</code> (uchovává se posledních 30). Data aplikace jsou uložena v profilu aplikace na tomto počítači.
+            <b>Desktopová verze:</b> záloha se ukládá automaticky při spuštění (jednou denně) a při každém zavření aplikace do složky <code>{backupDir}</code> (uchovává se posledních 30 automatických záloh; ruční zálohy a bezpečnostní kopie „pred-obnovou“ se nemažou). Data aplikace jsou uložena v profilu aplikace na tomto počítači.
             <div className="mt-2 flex gap-2">
               <button className="btn-secondary btn-sm" onClick={async () => { const f = await runDailyAutoBackupForce(); show(f ? `Záloha uložena: ${f}` : 'Záloha selhala.') }}>Zálohovat teď</button>
               <button className="btn-secondary btn-sm" onClick={() => window.denik?.openBackupDir()}>Otevřít složku záloh</button>
@@ -248,10 +255,10 @@ export function SettingsPage() {
           </div>
         )}
         <div className="flex flex-wrap gap-2 items-center">
-          <button className="btn-primary" onClick={async () => { if (isDesktop()) { const f = await saveBackupAs(); if (f) show(`Uloženo: ${f}`) } else { downloadBlob(await exportBackup(), `pedagogicky-denik-${new Date().toISOString().slice(0, 10)}.json`); show('Záloha stažena.') } }}>{isDesktop() ? 'Uložit zálohu jako…' : 'Stáhnout zálohu (JSON)'}</button>
-          <label className="btn-secondary">Obnovit ze zálohy<input type="file" accept=".json" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (!confirm('Obnovení nahradí všechna současná data. Pokračovat?')) return; try { await importBackup(f, 'replace'); show('Data obnovena.') } catch (err) { alert((err as Error).message) } e.target.value = '' }} /></label>
+          <button className="btn-primary" onClick={async () => { if (isDesktop()) { const f = await saveBackupAs(); if (f) show(`Uloženo: ${f}`) } else { downloadBlob(await exportBackup(), `pedagogicky-denik-${todayISO()}.json`); show('Záloha stažena.') } }}>{isDesktop() ? 'Uložit zálohu jako…' : 'Stáhnout zálohu (JSON)'}</button>
+          <label className="btn-secondary">Obnovit ze zálohy<input type="file" accept=".json" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (!confirm(`Obnovení nahradí všechna současná data. ${isDesktop() ? 'Současný stav se předtím uloží do složky záloh' : 'Současný stav se předtím stáhne jako soubor'} „…-pred-obnovou.json“. Pokračovat?`)) { e.target.value = ''; return } try { await restoreBackup(f); show('Data obnovena.'); setTimeout(() => location.reload(), 1200) } catch (err) { alert((err as Error).message) } e.target.value = '' }} /></label>
           <button className="btn-secondary" onClick={async () => { await loadDemoData(); show('Ukázková data přidána.') }}>Přidat ukázková data</button>
-          <ConfirmButton className="btn-danger" confirmLabel="Opravdu vše smazat?" onConfirm={async () => { await wipeAll(); location.reload() }}>Smazat všechna data</ConfirmButton>
+          <ConfirmButton className="btn-danger" confirmLabel="Opravdu vše smazat?" onConfirm={async () => { await safetyBackup('pred-smazanim'); await wipeAll(); location.reload() }}>Smazat všechna data</ConfirmButton>
         </div>
       </section>
 

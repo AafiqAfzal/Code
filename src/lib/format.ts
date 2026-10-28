@@ -8,8 +8,13 @@ export function fmtDate(iso?: string, pattern = 'd. M. yyyy') {
   return isValid(d) ? format(d, pattern, { locale: cs }) : iso
 }
 
+/** Datum jako „yyyy-MM-dd“ v místním čase (ne UTC – po půlnoci by jinak vyšel včerejšek). */
+export function isoDate(d: Date) {
+  return format(d, 'yyyy-MM-dd')
+}
+
 export function todayISO() {
-  return new Date().toISOString().slice(0, 10)
+  return isoDate(new Date())
 }
 
 export function fullName(s: Pick<Student, 'firstName' | 'lastName'>) {

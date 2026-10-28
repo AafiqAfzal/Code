@@ -1,17 +1,17 @@
 import { addDays } from 'date-fns'
 import { db, type CalendarEvent } from '../db/schema'
-import { EVENT_KINDS, fmtDate, todayISO } from './format'
+import { EVENT_KINDS, fmtDate, isoDate, todayISO } from './format'
 
 export interface Reminder { event: CalendarEvent; when: 'dnes' | 'zítra' | 'po termínu' }
 
 /** Události dnes, zítra a nesplněné termíny po datu. */
 export async function collectReminders(): Promise<Reminder[]> {
   const today = todayISO()
-  const tomorrow = addDays(new Date(), 1).toISOString().slice(0, 10)
+  const tomorrow = isoDate(addDays(new Date(), 1))
   const events = await db.events.where('date').belowOrEqual(tomorrow).filter((e) => !e.done).toArray()
   return events
     .map((e): Reminder => ({ event: e, when: e.date === today ? 'dnes' : e.date === tomorrow ? 'zítra' : 'po termínu' }))
-    .filter((r) => r.when !== 'po termínu' || r.event.kind === 'ukol' || r.event.date >= addDays(new Date(), -14).toISOString().slice(0, 10))
+    .filter((r) => r.when !== 'po termínu' || r.event.kind === 'ukol' || r.event.date >= isoDate(addDays(new Date(), -14)))
     .sort((a, b) => a.event.date.localeCompare(b.event.date) || (a.event.timeFrom ?? '').localeCompare(b.event.timeFrom ?? ''))
 }
 

@@ -4,7 +4,7 @@
  */
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
-import { BaseDirectory, exists, mkdir, readDir, readTextFile, remove, writeTextFile } from '@tauri-apps/plugin-fs'
+import { BaseDirectory, exists, mkdir, readDir, readTextFile, remove, rename, writeTextFile } from '@tauri-apps/plugin-fs'
 import { ask, save } from '@tauri-apps/plugin-dialog'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { check, type Update } from '@tauri-apps/plugin-updater'
@@ -12,7 +12,9 @@ import { relaunch } from '@tauri-apps/plugin-process'
 import { openPath, openUrl } from '@tauri-apps/plugin-opener'
 import { documentDir, join } from '@tauri-apps/api/path'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { exportBackup } from './backup'
+import { exportBackup, hasUserData } from './backup'
+import { todayISO } from './format'
+import { backupStamp } from './desktop'
 
 const APP_DIR = 'Pedagogický deník'
 const BACKUP_DIR = `${APP_DIR}/zalohy`
@@ -23,7 +25,30 @@ export const isTauri = () => '__TAURI_INTERNALS__' in window
 async function ensureBackupDir() {
   if (!(await exists(BACKUP_DIR, { baseDir: BaseDirectory.Document }))) await mkdir(BACKUP_DIR, { baseDir: BaseDirectory.Document, recursive: true })
 }
-const backupFileRe = /^pedagogicky-denik-\d{4}-\d{2}-\d{2}(.*)\.json$/
+/** Automatické denní zálohy (jen ty se po 30 kusech mažou; ruční a bezpečnostní zůstávají). */
+const backupFileRe = /^pedagogicky-denik-\d{4}-\d{2}-\d{2}\.json$/
+
+/** Zápis přes dočasný soubor a přejmenování – při pádu nebo plném disku zůstane stará záloha celá. */
+async function writeBackupFile(name: string, json: string) {
+  await ensureBackupDir()
+  const tmp = `${BACKUP_DIR}/${name}.tmp`
+  await writeTextFile(tmp, json, { baseDir: BaseDirectory.Document })
+  try {
+    await rename(tmp, `${BACKUP_DIR}/${name}`, { oldPathBaseDir: BaseDirectory.Document, newPathBaseDir: BaseDirectory.Document })
+  } catch (e) {
+    // pojistka: když přejmenování selže, zapsat postaru přímo (záloha nesmí zůstat neuložená)
+    log(`rename failed, writing directly: ${String((e as Error)?.message ?? e)}`)
+    await writeTextFile(`${BACKUP_DIR}/${name}`, json, { baseDir: BaseDirectory.Document })
+    await remove(tmp, { baseDir: BaseDirectory.Document }).catch(() => {})
+  }
+}
+
+/** Záloha teď (zavření okna, instalace aktualizace) – prázdnou databázi nezálohuje. */
+async function backupNow(): Promise<string | null> {
+  if (!window.denik || !(await hasUserData())) return null
+  const blob = await exportBackup()
+  return window.denik.autoBackup(await blob.text())
+}
 
 let updateState: UpdateState = { status: 'idle', version: null, error: null }
 const updateListeners = new Set<(s: UpdateState) => void>()
@@ -36,6 +61,8 @@ async function checkForUpdates(silent = true): Promise<UpdateState> {
     const upd = await check()
     if (!upd) { setUpdate({ status: 'up-to-date', version: await getVersion(), error: null }); return updateState }
     pending = upd
+    // instalátor ve Windows ukončí aplikaci bez zálohy při zavření – zálohujeme předem
+    try { await backupNow() } catch (e) { log(`backup before update failed: ${String((e as Error)?.message ?? e)}`) }
     setUpdate({ status: 'downloading', version: upd.version, error: null })
     await upd.downloadAndInstall()
     setUpdate({ status: 'ready', version: upd.version, error: null })
@@ -60,10 +87,8 @@ export function installTauriBridge() {
     isDesktop: true,
     autoBackup: async (json) => {
       log('autoBackup start')
-      await ensureBackupDir()
-      const date = new Date().toISOString().slice(0, 10)
-      const name = `pedagogicky-denik-${date}.json`
-      await writeTextFile(`${BACKUP_DIR}/${name}`, json, { baseDir: BaseDirectory.Document })
+      const name = `pedagogicky-denik-${todayISO()}.json`
+      await writeBackupFile(name, json)
       // ponechat posledních 30 záloh
       const files = (await readDir(BACKUP_DIR, { baseDir: BaseDirectory.Document })).map((f) => f.name).filter((n): n is string => !!n && backupFileRe.test(n)).sort()
       for (const old of files.slice(0, Math.max(0, files.length - KEEP))) await remove(`${BACKUP_DIR}/${old}`, { baseDir: BaseDirectory.Document })
@@ -74,10 +99,17 @@ export function installTauriBridge() {
     saveBackupAs: async (json) => {
       await ensureBackupDir()
       const dir = await join(await documentDir(), BACKUP_DIR)
-      const path = await save({ title: 'Uložit zálohu', defaultPath: await join(dir, `pedagogicky-denik-${new Date().toISOString().slice(0, 10)}.json`), filters: [{ name: 'Záloha (JSON)', extensions: ['json'] }] })
+      // jiný název než automatická záloha – ta by ruční zálohu při zavření aplikace přepsala
+      const path = await save({ title: 'Uložit zálohu', defaultPath: await join(dir, `pedagogicky-denik-${backupStamp()}-rucni.json`), filters: [{ name: 'Záloha (JSON)', extensions: ['json'] }] })
       if (!path) return null
       await writeTextFile(path, json)
       return path
+    },
+    saveNamedBackup: async (name, json) => {
+      await writeBackupFile(name, json)
+      const full = await join(await documentDir(), BACKUP_DIR, name)
+      log(`named backup ok: ${full}`)
+      return full
     },
     backupDir: async () => join(await documentDir(), BACKUP_DIR),
     openBackupDir: async () => { await ensureBackupDir(); await openPath(await join(await documentDir(), BACKUP_DIR)) },
@@ -114,7 +146,7 @@ export function installTauriBridge() {
     event.preventDefault()
     log('close requested, backing up')
     try {
-      const backup = exportBackup().then((b) => b.text()).then((json) => denik.autoBackup(json))
+      const backup = backupNow()
       await Promise.race([backup, new Promise((r) => setTimeout(r, 8000))])
     } catch (e) {
       log(`backup on close failed: ${String((e as Error)?.message ?? e)}`)

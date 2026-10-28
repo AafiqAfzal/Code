@@ -1,4 +1,6 @@
+import { addDays, parseISO } from 'date-fns'
 import type { Settings } from '../db/schema'
+import { isoDate, todayISO } from './format'
 
 export type Term = 1 | 2 | 0 // 0 = celý rok
 
@@ -15,15 +17,14 @@ export function termRange(term: Term, settings?: Settings): { from: string; to: 
   const to = settings?.yearEnd ?? '2100-12-31'
   if (term === 1) return { from, to: term1End(settings) }
   if (term === 2) {
-    const d = new Date(term1End(settings)); d.setDate(d.getDate() + 1)
-    return { from: d.toISOString().slice(0, 10), to }
+    return { from: isoDate(addDays(parseISO(term1End(settings)), 1)), to }
   }
   return { from, to }
 }
 
 /** Aktuální pololetí podle dnešního data. */
 export function currentTerm(settings?: Settings): 1 | 2 {
-  return new Date().toISOString().slice(0, 10) <= term1End(settings) ? 1 : 2
+  return todayISO() <= term1End(settings) ? 1 : 2
 }
 
 export const TERM_LABEL: Record<Term, string> = { 1: '1. pololetí', 2: '2. pololetí', 0: 'celý rok' }

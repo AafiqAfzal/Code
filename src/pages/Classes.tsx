@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { deleteClass } from '../lib/remove'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Plus, Users, Sparkles, Armchair, Printer, CalendarCheck } from 'lucide-react'
 import { db, type Group, type SchoolClass } from '../db/schema'
@@ -119,7 +120,7 @@ export function ClassesPage() {
                   <Link to={`/tisk?classId=${selectedClass.id}`} className="btn-secondary btn-sm"><Printer size={14} /> Podklady na schůzky</Link>
                   <button className="btn-secondary btn-sm" onClick={() => setClassDraft({ ...selectedClass })}>Upravit</button>
                   <button className="btn-primary btn-sm" onClick={() => setGroupDraft({ name: '', gradeLevel: selectedClass.gradeLevel, subjectId: subjects[0]?.id, studentIds: [], color: COLORS[gradeGroups.length % COLORS.length] })}><Plus size={14} /> Nová skupina</button>
-                  <ConfirmButton onConfirm={async () => { await db.classes.delete(selectedClass.id); setParams({}) }}>Smazat třídu</ConfirmButton>
+                  <ConfirmButton onConfirm={async () => { const err = await deleteClass(selectedClass.id); if (err) alert(err); else setParams({}) }}>Smazat třídu</ConfirmButton>
                 </div>
               </div>
               <div className="card-body overflow-x-auto">

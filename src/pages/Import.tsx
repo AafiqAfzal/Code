@@ -52,7 +52,8 @@ function ExcelImport() {
   const rows: ImportRow[] = sheet ? applyMapping(sheet.rows, mapping, lastNameFirst) : []
 
   const onFile = async (f: File) => {
-    const parsed = await parseWorkbook(f)
+    let parsed: ParsedSheet[]
+    try { parsed = await parseWorkbook(f) } catch (e) { alert(`Soubor nejde načíst: ${(e as Error).message}`); return }
     setSheets(parsed); setSheetIdx(0); setMapping(guessMapping(parsed[0]?.headers ?? [])); setResult(null)
   }
   const selectSheet = (i: number) => { setSheetIdx(i); setMapping(guessMapping(sheets[i].headers)) }
@@ -104,8 +105,8 @@ function ExcelImport() {
   return (
     <div className="space-y-4">
       <div className="card card-body">
-        <p className="text-sm text-slate-600 mb-3">Nahrajte soubor .xlsx / .xls / .csv, např. export seznamu žáků ze Školy online. Aplikace sama pozná sloupce <b>Třída</b>, <b>Jméno</b>, <b>Příjmení</b>, <b>Skupina</b>, <b>Ročník</b>, <b>Datum narození</b> a <b>Občanství</b> (export „Karta žáka – seznam“); hodnota skupiny „-“ znamená bez skupiny; přiřazení lze upravit níže. Opakovaný import stejného žáka jej neduplikuje, jen aktualizuje.</p>
-        <input type="file" accept=".xlsx,.xls,.csv,.ods" className="text-sm" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
+        <p className="text-sm text-slate-600 mb-3">Nahrajte soubor .xlsx nebo .csv (starší .xls nejdřív v Excelu uložte jako .xlsx), např. export seznamu žáků ze Školy online. Aplikace sama pozná sloupce <b>Třída</b>, <b>Jméno</b>, <b>Příjmení</b>, <b>Skupina</b>, <b>Ročník</b>, <b>Datum narození</b> a <b>Občanství</b> (export „Karta žáka – seznam“); hodnota skupiny „-“ znamená bez skupiny; přiřazení lze upravit níže. Opakovaný import stejného žáka jej neduplikuje, jen aktualizuje.</p>
+        <input type="file" accept=".xlsx,.csv" className="text-sm" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
       </div>
       {sheet && (
         <>
@@ -250,7 +251,8 @@ function GradesImport() {
   const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
 
   const onFile = async (f: File) => {
-    const parsed = await parseWorkbook(f)
+    let parsed: ParsedSheet[]
+    try { parsed = await parseWorkbook(f) } catch (e) { alert(`Soubor nejde načíst: ${(e as Error).message}`); return }
     setSheets(parsed); setSheetIdx(0); setResult('')
     init(parsed[0])
   }
@@ -310,7 +312,7 @@ function GradesImport() {
         <div className="flex flex-wrap items-end gap-3">
           <Field label="Předmět"><select className="input w-auto" value={subjectId ?? subjects[0]?.id ?? ''} onChange={(e) => setSubjectId(Number(e.target.value))}>{subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
           <Field label="Skupina"><select className="input w-auto" value={groupId ?? ''} onChange={(e) => setGroupId(Number(e.target.value) || undefined)}><option value="">všichni žáci</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select></Field>
-          <input type="file" accept=".xlsx,.xls,.csv,.ods" className="text-sm" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
+          <input type="file" accept=".xlsx,.csv" className="text-sm" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
         </div>
       </div>
       {sheet && (

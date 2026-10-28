@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs/dist/exceljs.min.js'
 
 export interface ImportRow {
   className?: string
@@ -58,24 +58,85 @@ export function guessMapping(headers: string[]): ColumnMapping {
   return m
 }
 
+/** Hodnota buňky z ExcelJS → číslo, text nebo datum (vzorce → výsledek, formátovaný text → prostý text). */
+function cellPlain(v: unknown): unknown {
+  if (v == null) return ''
+  if (v instanceof Date || typeof v !== 'object') return v
+  const o = v as { richText?: { text: string }[]; result?: unknown; text?: unknown; error?: unknown }
+  if (o.richText) return o.richText.map((r) => r.text).join('')
+  if ('result' in o) return cellPlain(o.result)
+  if (o.text != null) return cellPlain(o.text)
+  return ''
+}
+
+/** Matice buněk → hlavička (první řádek s ≥ 2 neprázdnými buňkami) a řádky jako objekty. */
+function matrixToSheet(sheetName: string, matrix: unknown[][]): ParsedSheet {
+  let headerIdx = matrix.findIndex((r) => r.filter((c) => String(c).trim() !== '').length >= 2)
+  if (headerIdx < 0) headerIdx = 0
+  const headers = (matrix[headerIdx] ?? []).map((h, i) => (String(h).trim() ? String(h).trim() : `Sloupec ${i + 1}`))
+  const rows: Record<string, unknown>[] = []
+  for (const r of matrix.slice(headerIdx + 1)) {
+    if (r.every((c) => String(c ?? '').trim() === '')) continue
+    const obj: Record<string, unknown> = {}
+    headers.forEach((h, i) => (obj[h] = r[i] ?? ''))
+    rows.push(obj)
+  }
+  return { sheetName, headers, rows }
+}
+
+/** CSV (oddělovač ; , nebo tabulátor, uvozovky) → matice. */
+export function parseCsv(text: string): string[][] {
+  const first = text.split(/\r?\n/, 1)[0] ?? ''
+  const count = (ch: string) => first.split(ch).length - 1
+  const sep = [';', '\t', ','].sort((a, b) => count(b) - count(a))[0]
+  const out: string[][] = []
+  let row: string[] = [], cell = '', quoted = false
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (quoted) {
+      if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++ }
+      else if (ch === '"') quoted = false
+      else cell += ch
+    } else if (ch === '"' && cell === '') quoted = true
+    else if (ch === sep) { row.push(cell); cell = '' }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[i + 1] === '\n') i++
+      row.push(cell); out.push(row); row = []; cell = ''
+    } else cell += ch
+  }
+  if (cell !== '' || row.length) { row.push(cell); out.push(row) }
+  return out
+}
+
+/** Text souboru: UTF-8, případně Windows-1250 (CSV z českého Excelu). */
+function decodeText(buf: ArrayBuffer): string {
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(buf).replace(/^\uFEFF/, '') }
+  catch { return new TextDecoder('windows-1250').decode(buf) }
+}
+
+/**
+ * Načte sešit Excelu (.xlsx) nebo CSV. Starý formát .xls a .ods nečteme – knihovna,
+ * která je uměla, má neopravené bezpečnostní chyby; stačí soubor v Excelu uložit jako .xlsx.
+ */
 export async function parseWorkbook(file: File): Promise<ParsedSheet[]> {
   const buf = await file.arrayBuffer()
-  const wb = XLSX.read(buf, { type: 'array' })
-  return wb.SheetNames.map((sheetName) => {
-    const ws = wb.Sheets[sheetName]
-    // Načteme jako matici, najdeme řádek hlavičky (první řádek s ≥ 2 neprázdnými buňkami)
-    const matrix = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
-    let headerIdx = matrix.findIndex((r) => r.filter((c) => String(c).trim() !== '').length >= 2)
-    if (headerIdx < 0) headerIdx = 0
-    const headers = (matrix[headerIdx] ?? []).map((h, i) => (String(h).trim() ? String(h).trim() : `Sloupec ${i + 1}`))
-    const rows: Record<string, unknown>[] = []
-    for (const r of matrix.slice(headerIdx + 1)) {
-      if (r.every((c) => String(c).trim() === '')) continue
-      const obj: Record<string, unknown> = {}
-      headers.forEach((h, i) => (obj[h] = r[i] ?? ''))
-      rows.push(obj)
+  const name = file.name.toLowerCase()
+  if (name.endsWith('.csv') || name.endsWith('.txt')) return [matrixToSheet(file.name, parseCsv(decodeText(buf)))]
+  const head = new Uint8Array(buf.slice(0, 4))
+  const isZip = head[0] === 0x50 && head[1] === 0x4b
+  if (!isZip || name.endsWith('.ods')) throw new Error('Tento formát (.xls / .ods) neumím načíst. Otevřete soubor v Excelu a uložte ho jako „Sešit Excelu (.xlsx)“, nebo jako CSV.')
+  const wb = new ExcelJS.Workbook()
+  await wb.xlsx.load(buf)
+  return wb.worksheets.map((ws) => {
+    const matrix: unknown[][] = []
+    const cols = ws.columnCount
+    for (let r = 1; r <= ws.rowCount; r++) {
+      const row = ws.getRow(r)
+      const cells: unknown[] = []
+      for (let c = 1; c <= cols; c++) cells.push(cellPlain(row.getCell(c).value))
+      matrix.push(cells)
     }
-    return { sheetName, headers, rows }
+    return matrixToSheet(ws.name, matrix)
   })
 }
 
@@ -133,9 +194,9 @@ export function toISODate(v: unknown): string | undefined {
   if (v == null || v === '') return undefined
   if (v instanceof Date) return v.toISOString().slice(0, 10)
   if (typeof v === 'number') {
-    const d = XLSX.SSF.parse_date_code(v)
-    if (!d) return undefined
-    return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`
+    // sériové číslo Excelu: dny od 30. 12. 1899
+    if (v < 1 || v > 2958465) return undefined
+    return new Date(Date.UTC(1899, 11, 30) + Math.floor(v) * 86400000).toISOString().slice(0, 10)
   }
   const s = String(v).trim()
   const m = s.match(/^(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})/)

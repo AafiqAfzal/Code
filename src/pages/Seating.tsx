@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Printer, Shuffle, Trash2 } from 'lucide-react'
 import { db, type SeatingPlan } from '../db/schema'
@@ -20,19 +20,36 @@ export function SeatingPage() {
   const roster = useMemo(() => (group ? students.filter((s) => group.studentIds.includes(s.id)) : classId ? students.filter((s) => s.classId === classId) : []).sort(byName), [group, classId, students])
   const plan = useLiveQuery(async () => {
     if (!groupId && !classId) return undefined
-    return groupId ? db.seatingPlans.where('groupId').equals(groupId).first() : db.seatingPlans.where('classId').equals(classId!).first()
+    // null = plán neexistuje (undefined = ještě se načítá)
+    return (await (groupId ? db.seatingPlans.where('groupId').equals(groupId).first() : db.seatingPlans.where('classId').equals(classId!).first())) ?? null
   }, [groupId, classId])
   const [dragging, setDragging] = useState<number | null>(null)
 
-  // založit plán, když neexistuje
+  // založit plán, jen když opravdu neexistuje (ne během načítání) a jen jednou
+  const created = useRef(new Set<string>())
   useEffect(() => {
-    if (plan === null || plan) return
-    if (!groupId && !classId) return
+    if (plan !== null || (!groupId && !classId)) return
+    const key = `${groupId ?? ''}/${classId ?? ''}`
+    if (created.current.has(key)) return
+    created.current.add(key)
     db.seatingPlans.add({ groupId, classId, rows: 5, cols: 6, seats: {}, updatedAt: new Date().toISOString() })
   }, [plan, groupId, classId])
 
   const save = (patch: Partial<SeatingPlan>) => plan && db.seatingPlans.update(plan.id, { ...patch, updatedAt: new Date().toISOString() })
-  const seatOf = (sid: number) => plan ? Number(Object.entries(plan.seats).find(([, v]) => v === sid)?.[0] ?? -1) : -1
+  const seatOf = (sid: number) => plan ? Number(Object.entries(plan.seats).find(([k, v]) => v === sid && Number(k) < plan.rows * plan.cols)?.[0] ?? -1) : -1
+  /** Změna počtu řad/míst: žáci zůstanou na svém místě (řada, pozice); kdo se nevejde, přejde mezi neposazené. */
+  const resize = (rows: number, cols: number) => {
+    if (!plan) return
+    const seats: Record<number, number> = {}
+    for (const [k, sid] of Object.entries(plan.seats)) {
+      const i = Number(k)
+      if (i >= plan.rows * plan.cols) continue
+      const r = Math.floor(i / plan.cols), c = i % plan.cols
+      if (r < rows && c < cols) seats[r * cols + c] = sid
+    }
+    save({ rows, cols, seats })
+  }
+  const anySeated = () => !!plan && roster.some((s) => seatOf(s.id) >= 0)
   const unseated = roster.filter((s) => seatOf(s.id) < 0)
   const place = (sid: number, seatIdx: number | null) => {
     if (!plan) return
@@ -48,6 +65,7 @@ export function SeatingPage() {
   }
   const shuffle = () => {
     if (!plan) return
+    if (anySeated() && !confirm('Náhodné rozesazení nahradí současný zasedací pořádek. Pokračovat?')) return
     const idx = Array.from({ length: plan.rows * plan.cols }, (_, i) => i).sort(() => Math.random() - 0.5)
     const seats: Record<number, number> = {}
     roster.forEach((s, i) => { if (idx[i] != null) seats[idx[i]] = s.id })
@@ -67,10 +85,10 @@ export function SeatingPage() {
           </select>
           {plan && (
             <>
-              <label className="text-sm">Řady <input type="number" min={1} max={10} className="input w-16 inline-block" value={plan.rows} onChange={(e) => save({ rows: Number(e.target.value) || 1 })} /></label>
-              <label className="text-sm">Místa v řadě <input type="number" min={1} max={12} className="input w-16 inline-block" value={plan.cols} onChange={(e) => save({ cols: Number(e.target.value) || 1 })} /></label>
+              <label className="text-sm">Řady <input type="number" min={1} max={10} className="input w-16 inline-block" value={plan.rows} onChange={(e) => resize(Math.min(10, Math.max(1, Number(e.target.value) || 1)), plan.cols)} /></label>
+              <label className="text-sm">Místa v řadě <input type="number" min={1} max={12} className="input w-16 inline-block" value={plan.cols} onChange={(e) => resize(plan.rows, Math.min(12, Math.max(1, Number(e.target.value) || 1)))} /></label>
               <button className="btn-secondary" onClick={shuffle}><Shuffle size={16} /> Náhodně rozesadit</button>
-              <button className="btn-secondary" onClick={() => save({ seats: {} })}><Trash2 size={16} /> Vyprázdnit</button>
+              <button className="btn-secondary" onClick={() => { if (!anySeated() || confirm('Vyprázdnit zasedací pořádek? Všichni žáci přejdou mezi neposazené.')) save({ seats: {} }) }}><Trash2 size={16} /> Vyprázdnit</button>
               <button className="btn-secondary" onClick={() => window.print()}><Printer size={16} /> Tisk</button>
             </>
           )}

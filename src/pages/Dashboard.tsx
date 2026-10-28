@@ -4,11 +4,11 @@ import { addDays } from 'date-fns'
 import { CalendarDays, ClipboardList, ListChecks, BookOpenCheck, Sparkles, BellRing, Check } from 'lucide-react'
 import { db } from '../db/schema'
 import { loadDemoData } from '../db/seed'
-import { importBackup } from '../lib/backup'
+import { backupSummary, importBackup } from '../lib/backup'
 import { useEffect, useState } from 'react'
 import { useClasses, useGroups, useSettings, useStudents, useSubjects } from '../components/hooks'
 import { Badge, EmptyState, PageHeader } from '../components/ui'
-import { EVENT_KINDS, daysToBirthday, ageFrom, fmtDate, lessonRange, todayISO } from '../lib/format'
+import { EVENT_KINDS, daysToBirthday, ageFrom, fmtDate, isoDate, lessonRange, todayISO } from '../lib/format'
 import { collectReminders } from '../lib/reminders'
 import { scheduleForDate } from '../lib/schedule'
 import { holidayName, schoolHolidayName } from '../lib/holidays'
@@ -26,7 +26,7 @@ export function Dashboard() {
   const wholeDayOff = changes.find((c) => c.kind === 'odpada' && c.lessonNumber == null)
   const schoolHolidays = useLiveQuery(() => db.schoolHolidays.toArray(), []) ?? []
   const vacation = schoolHolidayName(today, schoolHolidays)
-  const upcoming = useLiveQuery(() => db.events.where('date').between(today, addDays(new Date(), 14).toISOString().slice(0, 10), true, true).sortBy('date'), [today]) ?? []
+  const upcoming = useLiveQuery(() => db.events.where('date').between(today, isoDate(addDays(new Date(), 14)), true, true).sortBy('date'), [today]) ?? []
   const overdue = useLiveQuery(() => db.events.where('date').below(today).filter((e) => !e.done && e.kind === 'ukol').toArray(), [today]) ?? []
   const recentLogs = useLiveQuery(() => db.lessonLogs.orderBy('date').reverse().limit(5).toArray(), []) ?? []
   const plans = useLiveQuery(() => db.plans.toArray(), []) ?? []
@@ -43,24 +43,36 @@ export function Dashboard() {
   const subjectIdOf = (e: { subjectId?: number }) => e.subjectId ?? settings?.defaultSubjectId ?? subjects[0]?.id ?? ''
   const studentName = (id: number) => { const s = students.find((x) => x.id === id); return s ? `${s.lastName} ${s.firstName}` : '' }
   const isEmpty = classes.length === 0 && students.length === 0
-  const [backups, setBackups] = useState<string[]>([])
+  // nejnovější záloha, která není prázdná (prázdná by nic neobnovila)
+  const [found, setFound] = useState<{ name: string; text: string; students: number } | null>(null)
   const [restoreMsg, setRestoreMsg] = useState('')
-  useEffect(() => { if (isEmpty && window.denik?.listBackups) window.denik.listBackups().then(setBackups).catch(() => {}) }, [isEmpty])
+  useEffect(() => {
+    if (!isEmpty || !window.denik?.listBackups || !window.denik.readBackup) return
+    let cancelled = false
+    ;(async () => {
+      for (const name of await window.denik!.listBackups!()) {
+        const text = await window.denik!.readBackup!(name).catch(() => '')
+        const sum = backupSummary(text)
+        if (sum.records > 0) { if (!cancelled) setFound({ name, text, students: sum.students }); return }
+      }
+    })().catch(() => {})
+    return () => { cancelled = true }
+  }, [isEmpty])
   const restoreLatest = async () => {
-    if (!window.denik?.readBackup || !backups[0]) return
-    try { const text = await window.denik.readBackup(backups[0]); await importBackup(new File([text], backups[0], { type: 'application/json' }), 'replace'); setRestoreMsg('Data obnovena.'); location.reload() } catch (e) { setRestoreMsg(`Obnova selhala: ${(e as Error).message}`) }
+    if (!found) return
+    try { await importBackup(new File([found.text], found.name, { type: 'application/json' }), 'replace'); setRestoreMsg('Data obnovena.'); location.reload() } catch (e) { setRestoreMsg(`Obnova selhala: ${(e as Error).message}`) }
   }
   const birthdays = students.map((s) => ({ s, d: daysToBirthday(s.birthDate) })).filter((x) => x.d != null && x.d <= 7).sort((a, b) => a.d! - b.d!)
 
   return (
     <div>
       <PageHeader title={`Dobrý den${settings?.teacherName ? `, ${settings.teacherName}` : ''}`} subtitle={fmtDate(today, 'EEEE d. MMMM yyyy')} />
-      {isEmpty && backups.length > 0 && (
+      {isEmpty && found && (
         <div className="card card-body mb-4 border-green-200 bg-green-50">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="font-semibold text-green-900">Našel jsem zálohu z předchozí verze</div>
-              <p className="text-sm text-green-800">Ve složce Dokumenty je záloha <b>{backups[0]}</b>. Obnovím z ní všechna data (žáky, známky, zápisy, rozvrh, plány, šablonu výkazu).</p>
+              <p className="text-sm text-green-800">Ve složce Dokumenty je záloha <b>{found.name}</b> ({found.students} žáků). Obnovím z ní všechna data (žáky, známky, zápisy, rozvrh, plány, šablonu výkazu).</p>
               {restoreMsg && <p className="text-sm text-green-900">{restoreMsg}</p>}
             </div>
             <button className="btn-primary" onClick={restoreLatest}>Obnovit data ze zálohy</button>

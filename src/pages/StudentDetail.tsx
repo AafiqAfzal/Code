@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { deleteStudent, studentDeleteSummary } from '../lib/remove'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Plus } from 'lucide-react'
@@ -58,7 +59,7 @@ export function StudentDetail() {
         <>
           <button className="btn-secondary" onClick={() => setEdit({ ...student })}>Upravit profil</button>
           <Link className="btn-primary" to={`/tisk?studentId=${student.id}${myGroups[0] ? `&groupId=${myGroups[0].id}` : ''}`}>Podklady na schůzku s rodiči</Link>
-          <ConfirmButton className="btn-danger" onConfirm={async () => { await db.students.delete(student.id); await db.studentNotes.where('studentId').equals(student.id).delete(); await db.assessments.where('studentId').equals(student.id).delete(); navigate('/zaci') }}>Smazat žáka</ConfirmButton>
+          <ConfirmButton className="btn-danger" onConfirm={async () => { const n = await studentDeleteSummary(student.id); if (!confirm(`Smazat žáka ${fullName(student)} natrvalo?\nSmaže se i ${n.grades} známek a ${n.notes} poznámek, žák zmizí ze skupin, zasedacího pořádku a docházky.\n\nPokud žák jen odešel ze školy, stačí ho v profilu označit jako neaktivního.`)) return; await deleteStudent(student.id); navigate('/zaci') }}>Smazat žáka</ConfirmButton>
         </>
       } />
 

@@ -3,6 +3,8 @@ interface DenikDesktop {
   isDesktop: true
   autoBackup: (json: string) => Promise<string>
   saveBackupAs: (json: string) => Promise<string | null>
+  /** Záloha pod daným názvem do složky záloh (nemaže se automaticky) */
+  saveNamedBackup?: (name: string, json: string) => Promise<string>
   backupDir: () => Promise<string>
   openBackupDir: () => Promise<void>
   notify: (title: string, body: string) => Promise<boolean>

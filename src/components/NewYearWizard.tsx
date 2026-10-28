@@ -3,7 +3,7 @@ import { db } from '../db/schema'
 import { useClasses, useSettings } from './hooks'
 import { Modal } from './ui'
 import { exportBackup, downloadBlob } from '../lib/backup'
-import { saveBackupAs } from '../lib/desktop'
+import { safetyBackup, saveBackupAs } from '../lib/desktop'
 
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']
 
@@ -29,6 +29,9 @@ export function NewYearWizard({ open, onClose }: { open: boolean; onClose: () =>
   const run = async () => {
     setBusy(true)
     const summary: string[] = []
+    try {
+    // v desktopu vždy ještě jedna záloha těsně před přechodem (nepřepíše ji automatická záloha)
+    if (window.denik) { const f = await safetyBackup('pred-novym-rokem'); if (f) summary.push(`Záloha před přechodem: ${f}`) }
     await db.transaction('rw', [db.classes, db.groups, db.students, db.assessments, db.lessonLogs, db.events, db.planItems, db.studentNotes, db.timetable, db.termEvaluations, db.settings, db.seatingPlans, db.timetableChanges, db.schoolHolidays], async () => {
       if (opts.promote) {
         const rename = new Map<string, string>()
@@ -63,8 +66,12 @@ export function NewYearWizard({ open, onClose }: { open: boolean; onClose: () =>
       if (opts.clearTimetable) { await db.timetable.clear(); summary.push('Rozvrh vymazán') }
       if (nextYear && y1) await db.settings.update(1, { schoolYear: nextYear, yearStart: `${y1 + 1}-09-01`, yearEnd: `${y2 + 1}-06-30` })
     })
-    setBusy(false)
     setDone(summary.join('\n'))
+    } catch (e) {
+      alert(`Přechod se nepodařil, data zůstala beze změny: ${(e as Error).message}`)
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (

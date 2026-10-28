@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Lock } from 'lucide-react'
 import { clearPin, verifyPin } from '../lib/pin'
 import { importBackup } from '../lib/backup'
+import { isDesktop, restoreBackup } from '../lib/desktop'
 
 export function LockScreen({ onUnlock }: { onUnlock: () => void }) {
   const [pin, setPin] = useState('')
@@ -30,7 +31,9 @@ export function LockScreen({ onUnlock }: { onUnlock: () => void }) {
             <label className="btn-secondary btn-sm mt-2">Obnovit ze zálohy a zrušit PIN
               <input type="file" accept=".json" className="hidden" onChange={async (e) => {
                 const f = e.target.files?.[0]; if (!f) return
-                try { await importBackup(f, 'replace'); await clearPin(); onUnlock() } catch (err) { setError((err as Error).message) }
+                if (!confirm('Všechna současná data se nahradí daty ze zálohy a PIN se zruší. Pokračovat?')) { e.target.value = ''; return }
+                // v desktopu se současný stav nejdřív uloží do složky záloh; v prohlížeči ne (stažení by data vydalo komukoli u zamčené obrazovky)
+                try { if (isDesktop()) await restoreBackup(f); else await importBackup(f, 'replace'); await clearPin(); onUnlock(); location.reload() } catch (err) { setError((err as Error).message) }
               }} />
             </label>
           </div>

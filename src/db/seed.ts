@@ -1,3 +1,4 @@
+import { isoDate } from '../lib/format'
 import { db } from './schema'
 
 /** Výchozí data podle "Průběžné hodnocení 2026-27" – lze upravit v Nastavení. */
@@ -20,6 +21,31 @@ export const DEFAULT_RULES_TEXT = `Průběžné hodnocení 2026/27 – shrnutí 
 • Do hodnocení se promítá také aktivita v hodině a plnění domácích úkolů.
 
 (Text lze upravit v Nastavení → Hodnocení.)`
+
+/**
+ * Obnoví výchozí kategorie hodnocení bez rozbití známek: existující kategorie se stejným
+ * názvem se jen upraví (zachovají id), chybějící se přidají, ostatní se smažou jen tehdy,
+ * když je nepoužívá žádná známka. Vrací názvy ponechaných vlastních kategorií.
+ */
+export async function resetDefaultCategories(): Promise<string[]> {
+  return db.transaction('rw', db.gradeCategories, db.assessments, async () => {
+    const existing = await db.gradeCategories.toArray()
+    const used = new Set<number>()
+    await db.assessments.each((a) => { used.add(a.categoryId) })
+    for (const d of DEFAULT_CATEGORIES) {
+      const ex = existing.find((c) => c.name === d.name)
+      if (ex) await db.gradeCategories.update(ex.id, { ...d })
+      else await db.gradeCategories.add({ ...d })
+    }
+    const kept: string[] = []
+    for (const c of existing) {
+      if (DEFAULT_CATEGORIES.some((d) => d.name === c.name)) continue
+      if (used.has(c.id)) { kept.push(c.name); await db.gradeCategories.update(c.id, { order: 100 + c.order }) }
+      else await db.gradeCategories.delete(c.id)
+    }
+    return kept
+  })
+}
 
 export async function ensureDefaults() {
   const settings = await db.settings.get(1)
@@ -82,7 +108,7 @@ export async function loadDemoData() {
 
   const cats = await db.gradeCategories.orderBy('order').toArray()
   const today = new Date()
-  const iso = (d: Date) => d.toISOString().slice(0, 10)
+  const iso = isoDate
   const daysAgo = (n: number) => { const d = new Date(today); d.setDate(d.getDate() - n); return d }
   for (const [gid, ids] of [[g1, idsA.slice(0, 6)], [g2, idsB.slice(0, 6)]] as [number, number[]][]) {
     for (const sid of ids) {

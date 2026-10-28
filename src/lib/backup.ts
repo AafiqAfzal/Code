@@ -14,6 +14,25 @@ export async function exportBackup(): Promise<Blob> {
   return new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
 }
 
+/** Tabulky, podle kterých poznáme, že v deníku jsou skutečná data (ne jen výchozí nastavení). */
+const CONTENT_TABLES = ['students', 'classes', 'assessments', 'lessonLogs', 'plans', 'events', 'timetable'] as const
+
+/** Je v databázi něco, co stojí za zálohu? */
+export async function hasUserData(): Promise<boolean> {
+  const counts = await Promise.all(CONTENT_TABLES.map((t) => db.table(t).count()))
+  return counts.some((n) => n > 0)
+}
+
+/** Počet žáků a záznamů v záloze (text JSON) – kvůli rozpoznání prázdné zálohy. */
+export function backupSummary(text: string): { students: number; records: number } {
+  try {
+    const data = (JSON.parse(text) as { data?: Record<string, unknown[]> }).data ?? {}
+    return { students: data.students?.length ?? 0, records: CONTENT_TABLES.reduce((n, t) => n + (data[t]?.length ?? 0), 0) }
+  } catch {
+    return { students: 0, records: 0 }
+  }
+}
+
 export async function importBackup(file: File, mode: 'replace' | 'merge' = 'replace') {
   const text = await file.text()
   const payload = JSON.parse(text) as { app?: string; data?: Record<string, unknown[]> }

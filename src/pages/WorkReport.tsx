@@ -6,12 +6,12 @@ import { db, type WorkDay, type WorkMonth } from '../db/schema'
 import { useSettings } from '../components/hooks'
 import { Field, PageHeader, Toast, useToast } from '../components/ui'
 import { SettingsTabs } from '../components/Layout'
-import { WEEKDAYS_SHORT, fmtDate } from '../lib/format'
+import { WEEKDAYS_SHORT, fmtDate, todayISO } from '../lib/format'
 import { holidayName, schoolHolidayName } from '../lib/holidays'
 import { WORK_CODES, WORK_CODE_LABEL, addHours, autoFillMonth, dateOf, daysInMonth, fillTemplate, monthTotals, workdaySpan } from '../lib/workReport'
 import { downloadBlob } from '../lib/backup'
 
-const thisMonth = () => new Date().toISOString().slice(0, 7)
+const thisMonth = () => todayISO().slice(0, 7)
 
 export function WorkReportPage() {
   const settings = useSettings()
@@ -172,7 +172,7 @@ function PrintSheet({ draft, month, n, dayInfo, totals }: { draft: Omit<WorkMont
           <div>Podpis vykazujícího: ____________________<br /><br />Schválila: ____________________</div>
           <table className="text-[10px]"><thead><tr>{['Samostudium', 'Dovolená', 'Svátek', 'Lékař', 'Očr', 'DVPP'].map((h) => <th key={h} className="border border-black px-2">{h}</th>)}</tr></thead><tbody><tr>{['Sa', 'D', 'Sv', 'L', 'OČR', 'DVPP'].map((c) => <td key={c} className="border border-black text-center">{totals.codes[c] ?? 0}</td>)}</tr></tbody></table>
         </div>
-        <p className="mt-2 text-[9px] text-slate-500">Vytištěno z Pedagogického deníku · {fmtDate(new Date().toISOString().slice(0, 10))}{dayInfo(1).weekend ? '' : ''}</p>
+        <p className="mt-2 text-[9px] text-slate-500">Vytištěno z Pedagogického deníku · {fmtDate(todayISO())}{dayInfo(1).weekend ? '' : ''}</p>
       </div>
     </div>
   )
