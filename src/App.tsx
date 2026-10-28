@@ -28,6 +28,9 @@ export default function App() {
   const [ready, setReady] = useState(false)
   const settings = useLiveQuery(() => db.settings.get(1), [])
   const [locked, setLocked] = useState<boolean | null>(null)
+  // po prvním odemčení se aplikace při zamčení jen skryje (rozepsaná práce zůstane)
+  const [unlockedOnce, setUnlockedOnce] = useState(false)
+  useEffect(() => { if (locked === false) setUnlockedOnce(true) }, [locked])
   // Zámek PINem: při spuštění a po nečinnosti
   useEffect(() => {
     if (!settings) return
@@ -50,8 +53,11 @@ export default function App() {
     return () => { clearTimeout(reminders); clearInterval(hourly); off?.() }
   }, [])
   if (!ready || locked === null) return <div className="p-8 text-slate-500">Načítám…</div>
-  if (locked) return <LockScreen onUnlock={() => setLocked(false)} />
+  if (locked && !unlockedOnce) return <LockScreen onUnlock={() => setLocked(false)} />
   return (
+    <>
+    {locked && <LockScreen onUnlock={() => setLocked(false)} />}
+    <div className={locked ? 'h-full invisible' : 'h-full'} inert={!!locked} aria-hidden={!!locked}>
     <HashRouter>
       <Routes>
         <Route element={<Layout />}>
@@ -74,5 +80,7 @@ export default function App() {
         </Route>
       </Routes>
     </HashRouter>
+    </div>
+    </>
   )
 }

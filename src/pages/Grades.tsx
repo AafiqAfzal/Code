@@ -40,18 +40,22 @@ export function GradesPage() {
   const activeTerm: Term = term ?? (settings ? currentTerm(settings) : 0)
   const range = termRange(activeTerm, settings)
 
-  const subjectId = Number(params.get('subjectId')) || settings?.defaultSubjectId || subjects[0]?.id
   const groupId = Number(params.get('groupId')) || undefined
   const classId = Number(params.get('classId')) || undefined
   const group = groups.find((g) => g.id === groupId)
+  // odkaz jen se skupinou (z Tříd, z karty žáka) → předmět podle skupiny
+  const subjectId = Number(params.get('subjectId')) || group?.subjectId || settings?.defaultSubjectId || subjects[0]?.id
   // Nabídka podle předmětu: moje skupiny daného předmětu + třídy, které v něm učím vcelku (podle rozvrhu)
-  const { groups: subjectGroups, classes: subjectClasses } = useTeachingUnits(subjectId)
+  const { groups: subjectGroups, classes: subjectClasses, loaded, allGroups, allClasses } = useTeachingUnits(subjectId)
   useEffect(() => {
-    const fits = (groupId && subjectGroups.some((g) => g.id === groupId)) || (classId && subjectClasses.some((c) => c.id === classId))
+    // dokud se data načítají, výběr nepřepisovat; platnou skupinu/třídu z odkazu (i kolegyně) ponechat
+    if (!loaded || (allGroups.length > 0 && groups.length === 0)) return
+    const fits = (groupId && (subjectGroups.some((g) => g.id === groupId) || allGroups.some((g) => g.id === groupId && g.mine === false && (!g.subjectId || g.subjectId === subjectId))))
+      || (classId && allClasses.some((c) => c.id === classId))
     if (fits) return
     const first: Record<string, string> | null = subjectGroups[0] ? { groupId: String(subjectGroups[0].id) } : subjectClasses[0] ? { classId: String(subjectClasses[0].id) } : null
     if (first) setParams({ subjectId: String(subjectId ?? ''), ...first }, { replace: true })
-  }, [groupId, classId, subjectGroups, subjectClasses, subjectId, setParams])
+  }, [loaded, groupId, classId, groups, allGroups, allClasses, subjectGroups, subjectClasses, subjectId, setParams])
 
   const roster = useMemo(() => group ? students.filter((s) => group.studentIds.includes(s.id)) : classId ? students.filter((s) => s.classId === classId) : [], [group, classId, students])
   const rosterIds = roster.map((s) => s.id)
@@ -78,11 +82,21 @@ export function GradesPage() {
   const addColumn = async () => {
     if (!newCol || !newCol.title.trim() || !subjectId) return
     const cat = categories.find((c) => c.id === newCol.categoryId)
+    const key = `${newCol.date}|${newCol.title.trim()}|${newCol.categoryId}`
+    const dup = await db.assessments.where('subjectId').equals(subjectId).filter((a) => rosterIds.includes(a.studentId) && `${a.date}|${a.title}|${a.categoryId}` === key).count()
+    if (dup) { alert('Hodnocení se stejným názvem, datem a kategorií už v této skupině existuje. Změňte název nebo datum.'); return }
+    // váha 0 je platná (informativní hodnocení); prázdné pole = váha kategorie
+    const weight = Number.isFinite(newCol.weight) ? newCol.weight : cat?.weight ?? 1
     await db.assessments.bulkAdd(roster.map((s) => ({
-      studentId: s.id, subjectId, groupId, categoryId: newCol.categoryId, date: newCol.date, title: newCol.title.trim(), weight: newCol.weight || cat?.weight || 1, maxPoints: newCol.maxPoints || undefined,
+      studentId: s.id, subjectId, groupId, categoryId: newCol.categoryId, date: newCol.date, title: newCol.title.trim(), weight, maxPoints: newCol.maxPoints || undefined,
     })))
     setNewCol(null)
-    show('Sloupec přidán – klikněte do buněk a vyplňte známky.')
+    // sloupec s datem v jiném pololetí by „zmizel“ – přepneme na jeho pololetí
+    if (activeTerm && (newCol.date < range.from || newCol.date > range.to)) {
+      const other = activeTerm === 1 ? 2 : 1
+      setTerm(other)
+      show(`Sloupec přidán do ${TERM_LABEL[other]} (podle data) – zobrazuji ho.`)
+    } else show('Sloupec přidán – klikněte do buněk a vyplňte známky.')
   }
   const openCell = (studentId: number, column: Column) => {
     const a = assessments.find((x) => x.studentId === studentId && `${x.date}|${x.title}|${x.categoryId}` === column.key)
@@ -91,7 +105,7 @@ export function GradesPage() {
   }
   const saveCell = async () => {
     if (!cell || !subjectId) return
-    const data = { grade: cellDraft.grade || undefined, points: cellDraft.points ?? undefined, maxPoints: cellDraft.maxPoints || undefined, weight: cellDraft.weight ?? cell.column.weight, note: cellDraft.note, absent: !!cellDraft.absent }
+    const data = { grade: cellDraft.grade || undefined, points: cellDraft.points ?? undefined, maxPoints: cellDraft.maxPoints || undefined, weight: Number.isFinite(cellDraft.weight) ? cellDraft.weight! : cell.column.weight, note: cellDraft.note, absent: !!cellDraft.absent }
     if (cell.a) await db.assessments.update(cell.a.id, data)
     else await db.assessments.add({ studentId: cell.studentId, subjectId, groupId, categoryId: cell.column.categoryId, date: cell.column.date, title: cell.column.title, ...data })
     setCell(null)
@@ -105,8 +119,13 @@ export function GradesPage() {
     else if (key.toLowerCase() === 'n') patch = { absent: true, grade: undefined }
     else if (key === 'Delete' || key === 'Backspace') patch = { grade: undefined, points: undefined, absent: false }
     if (!patch) return
-    if (a) await db.assessments.update(a.id, patch)
-    else await db.assessments.add({ studentId, subjectId, groupId, categoryId: column.categoryId, date: column.date, title: column.title, weight: column.weight, maxPoints: column.maxPoints, ...patch })
+    if (a) { await db.assessments.update(a.id, patch); return }
+    // nová známka: v transakci znovu ověřit, že ji mezitím nezapsal jiný stisk klávesy (jinak by vznikla dvakrát)
+    await db.transaction('rw', db.assessments, async () => {
+      const ex = await db.assessments.where('[studentId+subjectId]').equals([studentId, subjectId]).filter((x) => `${x.date}|${x.title}|${x.categoryId}` === column.key).first()
+      if (ex) await db.assessments.update(ex.id, patch!)
+      else await db.assessments.add({ studentId, subjectId, groupId, categoryId: column.categoryId, date: column.date, title: column.title, weight: column.weight, maxPoints: column.maxPoints, ...patch! })
+    })
   }
   const deleteColumn = async (c: Column) => {
     const ids = assessments.filter((a) => `${a.date}|${a.title}|${a.categoryId}` === c.key).map((a) => a.id)
@@ -198,7 +217,7 @@ export function GradesPage() {
               <Field label="Datum"><input type="date" className="input" value={newCol.date} onChange={(e) => setNewCol({ ...newCol, date: e.target.value })} /></Field>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Váha"><input type="number" step="0.5" min={0} className="input" value={newCol.weight} onChange={(e) => setNewCol({ ...newCol, weight: Number(e.target.value) })} /></Field>
+              <Field label="Váha"><input type="number" step="0.5" min={0} className="input" value={Number.isFinite(newCol.weight) ? newCol.weight : ''} onChange={(e) => setNewCol({ ...newCol, weight: e.target.value === '' ? NaN : Number(e.target.value) })} /></Field>
               <Field label="Max. bodů (volitelné – známka se dopočítá ze škály)"><input type="number" min={0} className="input" value={newCol.maxPoints ?? ''} onChange={(e) => setNewCol({ ...newCol, maxPoints: Number(e.target.value) || undefined })} /></Field>
             </div>
             <div className="flex justify-end gap-2"><button className="btn-secondary" onClick={() => setNewCol(null)}>Zrušit</button><button className="btn-primary" onClick={addColumn}>Přidat pro {roster.length} žáků</button></div>
@@ -218,7 +237,7 @@ export function GradesPage() {
             </div>
             {cellDraft.points != null && cellDraft.maxPoints ? <div className="text-sm text-slate-600">= {Math.round((cellDraft.points / cellDraft.maxPoints) * 1000) / 10} % → známka <b>{effectiveGrade({ ...(cellDraft as Assessment), grade: undefined }, scale)}</b></div> : null}
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Váha"><input type="number" step="0.5" className="input" value={cellDraft.weight ?? cell.column.weight} onChange={(e) => setCellDraft({ ...cellDraft, weight: Number(e.target.value) })} /></Field>
+              <Field label="Váha"><input type="number" step="0.5" className="input" min={0} value={Number.isFinite(cellDraft.weight) ? cellDraft.weight : ''} placeholder={String(cell.column.weight)} onChange={(e) => setCellDraft({ ...cellDraft, weight: e.target.value === '' ? NaN : Number(e.target.value) })} /></Field>
               <label className="flex items-center gap-2 text-sm pt-5"><input type="checkbox" checked={!!cellDraft.absent} onChange={(e) => setCellDraft({ ...cellDraft, absent: e.target.checked })} /> Nehodnocen (chyběl)</label>
             </div>
             <Field label="Poznámka"><input className="input" value={cellDraft.note ?? ''} onChange={(e) => setCellDraft({ ...cellDraft, note: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && saveCell()} /></Field>

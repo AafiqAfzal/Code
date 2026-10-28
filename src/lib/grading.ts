@@ -14,12 +14,14 @@ export function percentToGrade(percent: number, scale: GradingScale): number {
 export function effectiveGrade(a: Assessment, scale: GradingScale): number | undefined {
   if (a.absent) return undefined
   if (a.grade != null) return a.grade
-  if (a.points != null && a.maxPoints) return percentToGrade((a.points / a.maxPoints) * 100, scale)
+  // známka z procent zaokrouhlených stejně, jak se zobrazují (89,96 % → „90 %“ → 1)
+  const p = percentOf(a)
+  if (p != null) return percentToGrade(p, scale)
   return undefined
 }
 
 export function percentOf(a: Assessment): number | undefined {
-  if (a.points != null && a.maxPoints) return Math.round((a.points / a.maxPoints) * 1000) / 10
+  if (a.points != null && a.maxPoints && Number.isFinite(a.points)) return Math.round((a.points / a.maxPoints) * 1000) / 10
   return undefined
 }
 
@@ -29,15 +31,20 @@ export function weightedAverage(list: Assessment[], scale: GradingScale): number
   let w = 0
   for (const a of list) {
     const g = effectiveGrade(a, scale)
-    if (g == null) continue
-    sum += g * a.weight
-    w += a.weight
+    // chybějící váha (starší nebo importovaný záznam) = 1, nesmyslná váha se nepočítá
+    const weight = a.weight ?? 1
+    if (g == null || !Number.isFinite(weight) || weight < 0) continue
+    sum += g * weight
+    w += weight
   }
   if (w === 0) return undefined
   return Math.round((sum / w) * 100) / 100
 }
 
-/** Návrh známky na vysvědčení z průměru (zaokrouhlení s hranicí .5 → horší známka dle běžné praxe .5 ↑). */
+/**
+ * Návrh známky na vysvědčení ze zobrazeného průměru (na 2 desetinná místa): x,50 a víc → horší známka.
+ * Počítá se ze zobrazené hodnoty záměrně, aby návrh odpovídal průměru, který učitel i rodič vidí.
+ */
 export function proposedGrade(avg: number | undefined): number | undefined {
   if (avg == null) return undefined
   return Math.min(5, Math.max(1, Math.round(avg)))

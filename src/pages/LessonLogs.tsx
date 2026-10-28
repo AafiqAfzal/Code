@@ -63,11 +63,26 @@ export function LessonLogsPage() {
   const mergeable = (d: Draft) => myGroups.filter((g) => g.id !== d.groupId && (!g.subjectId || g.subjectId === d.subjectId))
   const visible = filterGroup ? logs.filter((l) => l.groupId === filterGroup || l.extraGroupIds?.includes(filterGroup)) : logs
 
+  /**
+   * Zápis už na téma plánu neodkazuje (přepojen na jiné téma nebo smazán): když na téma
+   * neodkazuje ani jiný zápis a bylo odškrtnuté tímto zápisem, odškrtnutí se zruší;
+   * jinak se datum odškrtnutí posune na nejstarší zbývající zápis.
+   */
+  const releasePlanItem = async (itemId: number, log: { id?: number; date: string }) => {
+    const item = await db.planItems.get(itemId)
+    if (!item?.done) return
+    const others = await db.lessonLogs.filter((l) => l.planItemId === itemId && l.id !== log.id).toArray()
+    if (others.length) await db.planItems.update(itemId, { doneDate: others.map((l) => l.date).sort()[0] })
+    else if (item.doneDate === log.date) await db.planItems.update(itemId, { done: false, doneDate: undefined })
+  }
   const save = async () => {
-    if (!draft || !draft.topic.trim()) return
+    if (!draft) return
+    if (!draft.topic.trim()) { alert('Vyplňte probrané učivo.'); return }
     const { id, ...data } = draft
+    const before = id ? await db.lessonLogs.get(id) : undefined
     if (id) await db.lessonLogs.update(id, data)
     else await db.lessonLogs.add(data)
+    if (before?.planItemId && before.planItemId !== draft.planItemId) await releasePlanItem(before.planItemId, before)
     if (draft.planItemId) {
       // téma se může probírat víckrát – datum odškrtnutí zůstává první hodina, další data se berou ze zápisů
       const item = await db.planItems.get(draft.planItemId)
@@ -157,7 +172,7 @@ export function LessonLogsPage() {
               <Field label="Domácí úkol"><input className="input" value={draft.homework ?? ''} onChange={(e) => setDraft({ ...draft, homework: e.target.value })} /></Field>
               <Field label="Poznámka (průběh hodiny, chování, co dokončit příště…)"><textarea className="input" rows={4} value={draft.note ?? ''} onChange={(e) => setDraft({ ...draft, note: e.target.value })} /></Field>
               <div className="flex justify-between pt-2">
-                {draft.id ? <ConfirmButton onConfirm={async () => { await db.lessonLogs.delete(draft.id!); setDraft(null) }}>Smazat</ConfirmButton> : <span />}
+                {draft.id ? <ConfirmButton onConfirm={async () => { const before = await db.lessonLogs.get(draft.id!); await db.lessonLogs.delete(draft.id!); if (before?.planItemId) await releasePlanItem(before.planItemId, before); setDraft(null) }}>Smazat</ConfirmButton> : <span />}
                 <div className="flex gap-2"><button className="btn-secondary" onClick={() => setDraft(null)}>Zrušit</button><button className="btn-primary" onClick={save}>Uložit</button></div>
               </div>
             </div>

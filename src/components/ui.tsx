@@ -1,20 +1,27 @@
 import { X } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 export function Modal({ open, onClose, title, children, wide }: { open: boolean; onClose: () => void; title: string; children: ReactNode; wide?: boolean }) {
+  // ochrana rozepsané práce: když uživatel v okně něco změnil, zavření bez uložení se zeptá
+  const dirty = useRef(false)
+  useEffect(() => { if (open) dirty.current = false }, [open])
+  const tryClose = useCallback(() => {
+    if (dirty.current && !confirm('Zavřít bez uložení? Rozepsané změny se ztratí.')) return
+    onClose()
+  }, [onClose])
   useEffect(() => {
     if (!open) return
-    const h = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') tryClose() }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
-  }, [open, onClose])
+  }, [open, tryClose])
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 overflow-y-auto" onMouseDown={onClose}>
-      <div className={`card w-full ${wide ? 'max-w-4xl' : 'max-w-lg'} mt-8`} onMouseDown={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 overflow-y-auto" onMouseDown={tryClose}>
+      <div className={`card w-full ${wide ? 'max-w-4xl' : 'max-w-lg'} mt-8`} onMouseDown={(e) => e.stopPropagation()} onInput={() => { dirty.current = true }} onChange={() => { dirty.current = true }}>
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
           <h2 className="card-title">{title}</h2>
-          <button className="btn-ghost btn-sm" onClick={onClose} aria-label="Zavřít"><X size={16} /></button>
+          <button className="btn-ghost btn-sm" onClick={tryClose} aria-label="Zavřít"><X size={16} /></button>
         </div>
         <div className="card-body">{children}</div>
       </div>

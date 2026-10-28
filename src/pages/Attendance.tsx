@@ -25,12 +25,14 @@ export function AttendancePage() {
   const units = useTeachingUnits(subjectId)
   const setSel = (patch: Record<string, string>) => setParams({ subjectId: String(subjectId ?? ''), ...patch }, { replace: true })
   useEffect(() => {
+    // dokud se data načítají, výběr z odkazu nepřepisovat
+    if (!units.loaded) return
     const fits = (groupId && units.groups.some((g) => g.id === groupId)) || (classId && units.classes.some((c) => c.id === classId))
-    if (fits || (groupId && groups.some((g) => g.id === groupId))) return
+    if (fits || (groupId && units.allGroups.some((g) => g.id === groupId)) || (classId && units.allClasses.some((c) => c.id === classId))) return
     const first: Record<string, string> | null = units.groups[0] ? { groupId: String(units.groups[0].id) } : units.classes[0] ? { classId: String(units.classes[0].id) } : null
     if (first) setSel(first)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subjectId, units.groups.length, units.classes.length])
+  }, [subjectId, units.loaded, units.groups.length, units.classes.length])
   const [month, setMonth] = useState('')
   const sel = groupId ? `g${groupId}` : classId ? `c${classId}` : ''
   const group = groups.find((g) => g.id === groupId)

@@ -36,7 +36,8 @@ export function CalendarPage() {
   const upcoming = useLiveQuery(() => db.events.where('date').aboveOrEqual(today).sortBy('date'), [today]) ?? []
 
   const save = async () => {
-    if (!draft || !draft.title.trim()) return
+    if (!draft) return
+    if (!draft.title.trim()) { alert('Vyplňte název události.'); return }
     const { id, ...data } = draft
     if (id) await db.events.update(id, data)
     else await db.events.add(data)
@@ -80,7 +81,7 @@ export function CalendarPage() {
               const dayEvents = visible.filter((e) => e.date === iso)
               const wd = getISODay(d)
               const sched = scheduleForDate(iso, slots, changes)
-              const lessons = activeLessons(sched).length
+              const lessons = activeLessons(sched).filter((e) => e.status !== 'substitution').length // suplování se ukazuje zvlášť (+N)
               const cancelled = sched.filter((e) => e.status === 'cancelled').length
               const subst = sched.filter((e) => e.status === 'substitution').length
               const dayOff = changes.find((c) => c.date === iso && c.kind === 'odpada' && c.lessonNumber == null)

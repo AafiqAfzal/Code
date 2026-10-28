@@ -4,6 +4,7 @@ import { useClasses, useSettings } from './hooks'
 import { Modal } from './ui'
 import { exportBackup, downloadBlob } from '../lib/backup'
 import { safetyBackup, saveBackupAs } from '../lib/desktop'
+import { todayISO } from '../lib/format'
 
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']
 
@@ -27,6 +28,8 @@ export function NewYearWizard({ open, onClose }: { open: boolean; onClose: () =>
   const nextYear = y1 && y2 ? `${y1 + 1}/${y2 + 1}` : ''
 
   const run = async () => {
+    // pojistka proti dvojímu spuštění: rok už je přepnutý (začátek roku je v budoucnu)
+    if (settings?.yearStart && settings.yearStart > todayISO() && !confirm(`Školní rok ${settings.schoolYear} ještě nezačal – průvodce už nejspíš proběhl. Spustit znovu (třídy se znovu povýší)?`)) return
     setBusy(true)
     const summary: string[] = []
     try {
@@ -40,8 +43,12 @@ export function NewYearWizard({ open, onClose }: { open: boolean; onClose: () =>
             const ids = (await db.students.where('classId').equals(c.id).toArray()).map((s) => s.id)
             await db.students.where('classId').equals(c.id).modify({ active: false })
             await db.classes.delete(c.id)
-            await db.groups.filter((g) => g.gradeLevel === c.gradeLevel).delete()
+            const retiredGroups = (await db.groups.filter((g) => g.gradeLevel === c.gradeLevel).toArray()).map((g) => g.id)
+            await db.groups.bulkDelete(retiredGroups)
             await db.seatingPlans.where('classId').equals(c.id).delete()
+            for (const gid of retiredGroups) await db.seatingPlans.where('groupId').equals(gid).delete()
+            // pravidelné hodiny odcházející třídy a jejích skupin by v rozvrhu zůstaly bez jména
+            await db.timetable.filter((t) => t.classId === c.id || (t.groupId != null && retiredGroups.includes(t.groupId))).delete()
             summary.push(`${c.name}: ${ids.length} žáků ukončilo docházku (neaktivní)`)
           } else {
             const newName = nextClassName(c.name)
@@ -49,10 +56,14 @@ export function NewYearWizard({ open, onClose }: { open: boolean; onClose: () =>
             await db.classes.update(c.id, { name: newName, gradeLevel: c.gradeLevel + 1 })
           }
         }
+        // přejmenování skupin jedním průchodem (6.A→7.A a 7.A→8.A se nesmí řetězit), jen celé názvy tříd
+        const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const olds = [...rename.keys()].sort((a, b) => b.length - a.length)
+        const re = olds.length ? new RegExp(`(?<![0-9A-Za-z])(${olds.map(esc).join('|')})(?![0-9A-Za-z])`, 'g') : null
         for (const g of await db.groups.toArray()) {
-          let name = g.name
-          for (const [o, n] of rename) name = name.replace(new RegExp(o.replace('.', '\\.') + '(?![IVX])', 'g'), n)
-          await db.groups.update(g.id, { name, gradeLevel: g.gradeLevel + 1 })
+          const name = re ? g.name.replace(re, (m) => rename.get(m) ?? m) : g.name
+          // kroužky (ročník 0) jsou napříč ročníky – ročník se jim nemění
+          await db.groups.update(g.id, { name, gradeLevel: g.gradeLevel === 0 ? 0 : g.gradeLevel + 1 })
         }
         summary.push(`Třídy povýšeny: ${[...rename].map(([o, n]) => `${o}→${n}`).join(', ')}`)
       }
@@ -61,7 +72,8 @@ export function NewYearWizard({ open, onClose }: { open: boolean; onClose: () =>
       if (opts.clearEvents) { const n = await db.events.where('date').below(settings?.yearEnd ?? '2100').delete(); summary.push(`Smazáno událostí: ${n}`) }
       if (opts.resetPlans) { const n = await db.planItems.filter((i) => i.done).modify({ done: false, doneDate: undefined }); summary.push(`Odškrtnutí v plánech zrušeno: ${n}`) }
       if (opts.clearNotes) { summary.push(`Smazáno poznámek: ${await db.studentNotes.count()}`); await db.studentNotes.clear() }
-      await db.timetableChanges.clear()
+      // výjimky v rozvrhu (odpadlé hodiny, suplování) jen z končícího roku – zadané na září zůstanou
+      if (y1) await db.timetableChanges.where('date').below(`${y1 + 1}-09-01`).delete()
       await db.schoolHolidays.where('to').below(`${y1 + 1}-09-01`).delete()
       if (opts.clearTimetable) { await db.timetable.clear(); summary.push('Rozvrh vymazán') }
       if (nextYear && y1) await db.settings.update(1, { schoolYear: nextYear, yearStart: `${y1 + 1}-09-01`, yearEnd: `${y2 + 1}-06-30` })

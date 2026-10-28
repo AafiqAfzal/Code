@@ -19,13 +19,18 @@ export function useGroups() {
  * rozvrhu učím vcelku. Bez rozvrhu se nabídnou všechny třídy (pokud nejsou skupiny).
  */
 export function useTeachingUnits(subjectId?: number) {
-  const myGroups = useMyGroups()
-  const classes = useClasses()
-  const slots = useLiveQuery(() => db.timetable.toArray(), []) ?? []
+  const rawGroups = useLiveQuery(() => db.groups.orderBy('name').toArray(), [])
+  const rawClasses = useLiveQuery(() => db.classes.orderBy('name').toArray(), [])
+  const rawSlots = useLiveQuery(() => db.timetable.toArray(), [])
+  /** false, dokud se data načítají – prázdné seznamy pak neznamenají „nic“ */
+  const loaded = !!rawGroups && !!rawClasses && !!rawSlots
+  const myGroups = (rawGroups ?? []).filter((g) => g.mine !== false)
+  const classes = rawClasses ?? []
+  const slots = rawSlots ?? []
   const groups = myGroups.filter((g) => !g.subjectId || g.subjectId === subjectId)
   const taught = new Set(slots.filter((s) => s.subjectId === subjectId && s.classId && !s.groupId).map((s) => s.classId))
   const units = taught.size ? classes.filter((c) => taught.has(c.id)) : groups.length ? [] : classes
-  return { groups, classes: units }
+  return { groups, classes: units, loaded, allGroups: rawGroups ?? [], allClasses: classes }
 }
 
 /** Jen skupiny, které učím já (bez skupin kolegů). */

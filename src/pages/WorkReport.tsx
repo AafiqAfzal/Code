@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Download, Printer, RefreshCw, Save } from 'lucide-react'
 import { db, type WorkDay, type WorkMonth } from '../db/schema'
@@ -24,10 +24,35 @@ export function WorkReportPage() {
   const saved = useLiveQuery(async () => (await db.workMonths.where('month').equals(month).first()) ?? null, [month])
   const [draft, setDraft] = useState<Omit<WorkMonth, 'id'> | null>(null)
   const [dirty, setDirty] = useState(false)
+  // ruční úpravy se ukládají automaticky (při přechodu jinam se neztratí)
+  const edited = useRef(false)
+  const pending = useRef<Omit<WorkMonth, 'id'> | null>(null)
+  const persist = async (d: Omit<WorkMonth, 'id'>) => {
+    pending.current = null
+    const data = { ...d, updatedAt: new Date().toISOString() }
+    const ex = await db.workMonths.where('month').equals(d.month).first()
+    if (ex) await db.workMonths.update(ex.id, data); else await db.workMonths.add(data)
+    setDirty(false)
+  }
+  useEffect(() => {
+    if (!edited.current || !draft) return
+    pending.current = draft
+    const t = setTimeout(() => { void persist(draft) }, 700)
+    return () => clearTimeout(t)
+  }, [draft])
+  // odchod ze stránky: uložit, co ještě čeká
+  useEffect(() => () => { if (pending.current) void persist(pending.current) }, [])
+  const changeMonth = (m: string) => {
+    if (pending.current) void persist(pending.current)
+    edited.current = false
+    setMonth(m)
+  }
 
   // načíst uložený měsíc, nebo předvyplnit z rozvrhu
   useEffect(() => {
     if (saved === undefined || !settings) return
+    // vlastní automatické uložení nesmí přepsat právě psaný text
+    if (edited.current && draft?.month === month) return
     if (saved) { setDraft({ ...saved }); setDirty(false); return }
     setDraft({
       month, name: settings.teacherName, position: settings.epdPosition ?? '', personalNumber: settings.epdPersonalNumber ?? '', workload: settings.epdWorkload ?? '',
@@ -39,8 +64,8 @@ export function WorkReportPage() {
 
   const totals = useMemo(() => (draft ? monthTotals(draft.days) : null), [draft])
   const n = daysInMonth(month)
-  const setDay = (d: number, patch: Partial<WorkDay>) => { if (!draft) return; setDraft({ ...draft, days: { ...draft.days, [d]: { ...draft.days[d], ...patch } } }); setDirty(true) }
-  const setHeader = (patch: Partial<WorkMonth>) => { if (!draft) return; setDraft({ ...draft, ...patch }); setDirty(true) }
+  const setDay = (d: number, patch: Partial<WorkDay>) => { if (!draft) return; edited.current = true; setDraft({ ...draft, days: { ...draft.days, [d]: { ...draft.days[d], ...patch } } }); setDirty(true) }
+  const setHeader = (patch: Partial<WorkMonth>) => { if (!draft) return; edited.current = true; setDraft({ ...draft, ...patch }); setDirty(true) }
   const save = async () => {
     if (!draft) return
     const data = { ...draft, updatedAt: new Date().toISOString() }
@@ -48,7 +73,7 @@ export function WorkReportPage() {
     await db.settings.update(1, { epdPosition: draft.position, epdPersonalNumber: draft.personalNumber, epdWorkload: draft.workload })
     setDirty(false); show('Výkaz uložen.')
   }
-  const refill = () => { if (!draft || !settings) return; if (!confirm('Přepsat dny podle rozvrhu? Ruční úpravy se ztratí.')) return; setDraft({ ...draft, days: autoFillMonth({ month, slots, changes, schoolHolidays, settings }) }); setDirty(true) }
+  const refill = () => { if (!draft || !settings) return; if (!confirm('Přepsat dny podle rozvrhu? Ruční úpravy se ztratí.')) return; edited.current = true; setDraft({ ...draft, days: autoFillMonth({ month, slots, changes, schoolHolidays, settings }) }); setDirty(true) }
   const exportXlsx = async () => {
     if (!draft || !template) return
     try {
@@ -73,7 +98,7 @@ export function WorkReportPage() {
       <div className="no-print">
         <PageHeader title="Evidence pracovní doby" subtitle="Měsíční výkaz vyplněný z rozvrhu; upravte a stáhněte školní šablonu" actions={
           <>
-            <input type="month" className="input w-auto" value={month} onChange={(e) => setMonth(e.target.value)} />
+            <input type="month" className="input w-auto" value={month} onChange={(e) => changeMonth(e.target.value)} />
             <button className="btn-secondary" onClick={refill}><RefreshCw size={16} /> Vyplnit z rozvrhu</button>
             <button className="btn-secondary" onClick={() => window.print()}><Printer size={16} /> Tisk</button>
             <button className="btn-secondary" disabled={!template} title={template ? '' : 'Nejprve nahrajte šablonu v Nastavení'} onClick={exportXlsx}><Download size={16} /> Stáhnout vyplněnou šablonu (XLSX)</button>

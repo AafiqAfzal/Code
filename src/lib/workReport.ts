@@ -37,7 +37,12 @@ export const DEFAULT_LUNCH_MINUTES = 30
 export function workdaySpan(settings: Settings | undefined, weekday: number): { start: string; end: string; hours: number; lunch: number } {
   const lunch = settings?.epdLunchMinutes ?? DEFAULT_LUNCH_MINUTES
   const wd = settings?.epdWeekdays?.[weekday - 1]
-  if (wd?.start && wd?.end) return { start: wd.start, end: wd.end, hours: Math.max(0, hoursBetween(wd.start, wd.end) - lunch / 60), lunch }
+  if (wd?.start && wd?.end) {
+    // přestávka na jídlo se podle § 88 zákoníku práce poskytuje až po 6 hodinách práce
+    const span = hoursBetween(wd.start, wd.end)
+    const dayLunch = span > 6 ? lunch : 0
+    return { start: wd.start, end: wd.end, hours: Math.max(0, span - dayLunch / 60), lunch: dayLunch }
+  }
   const start = settings?.epdStartTime || '7:30'
   const hours = settings?.epdDailyHours ?? 8
   return { start, end: addHours(start, hours + lunch / 60), hours, lunch }
