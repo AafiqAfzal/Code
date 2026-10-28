@@ -1,5 +1,18 @@
 # Změny
 
+## 3.0.7
+
+- Zálohy: prázdná databáze se už automaticky nezálohuje, takže nepřepíše poslední dobrou zálohu; nabídka obnovy na prázdném přehledu vybere nejnovější neprázdnou zálohu
+- Zálohy: před každou obnovou ze zálohy (a před „Smazat všechna data“) se současný stav uloží jako „…-pred-obnovou.json“ (v prohlížeči se stáhne)
+- Zálohy: ruční záloha („Uložit zálohu jako…“) a záloha před novým školním rokem mají vlastní název a automatická záloha je nepřepíše ani nesmaže; průvodce novým rokem v desktopu zálohuje sám těsně před přechodem
+- Zálohy: zápis přes dočasný soubor (při pádu nebo plném disku zůstane předchozí záloha celá), záloha i před instalací aktualizace
+- Obrazovka PINu: obnova ze zálohy se nejdřív zeptá
+- Datum „dnes“ podle místního času – po půlnoci (do 1:00, v létě do 2:00) už aplikace nebere včerejšek (přehled, zápisy, známky, pololetí, připomínky, výkaz, název zálohy)
+- Výchozí kategorie hodnocení: obnovení už neodpojí známky od kategorií; smazání používané kategorie se zeptá
+- Zasedací pořádek: zmenšení počtu řad/míst žáky neztratí (kdo se nevejde, je mezi neposazenými), náhodné rozesazení a vyprázdnění se zeptají, už se nezakládají prázdné duplicitní plány
+- Smazání žáka odstraní i jeho členství ve skupinách, místo v zasedacím pořádku, absence a slovní hodnocení; třídu se žáky nejde smazat
+- Import z Excelu: čtení přes bezpečnější knihovnu (soubory .xlsx a .csv; starší .xls je potřeba v Excelu uložit jako .xlsx), chyba při načtení se zobrazí
+
 ## 3.0.6
 
 - Tematické plány: u tématu probíraného ve více hodinách se zobrazí všechna data (např. „3× 5.10., 12.10., 19.10.“), po najetí myší i skupina; dřív se ukázalo jen poslední datum
