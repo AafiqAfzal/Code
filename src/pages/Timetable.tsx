@@ -45,7 +45,8 @@ export function TimetablePage() {
   }
   /** Skupiny, které lze spojit s vybranou (stejný předmět, jiná skupina; u jiného předmětu všechny moje) */
   const mergeableGroups = (sel: { groupId?: number; subjectId?: number }) => myGroups.filter((g) => g.id !== sel.groupId && (!sel.subjectId || !g.subjectId || g.subjectId === sel.subjectId))
-  const MergeField = ({ value, subjectId, groupId, onChange }: { value?: number[]; subjectId?: number; groupId?: number; onChange: (ids: number[]) => void }) => {
+  // obyčejná funkce, ne komponenta – komponenta definovaná v renderu se při každé změně znovu vytváří (ztrácí kurzor)
+  const mergeField = ({ value, subjectId, groupId, onChange }: { value?: number[]; subjectId?: number; groupId?: number; onChange: (ids: number[]) => void }) => {
     const opts = mergeableGroups({ groupId, subjectId })
     if (!groupId || opts.length === 0) return null
     const cur = value ?? []
@@ -298,7 +299,7 @@ export function TimetablePage() {
                 <Field label="Vlastní konec (nepovinné)"><input className="input" value={slotDraft.timeTo ?? ''} onChange={(e) => setSlotDraft({ ...slotDraft, timeTo: e.target.value || undefined })} placeholder={`standardně ${lessonRange(slotDraft.lessonNumber).split('–')[1]}`} /></Field>
               </div>
             )}
-            <MergeField value={slotDraft.extraGroupIds} subjectId={slotDraft.subjectId} groupId={slotDraft.groupId} onChange={(ids) => setSlotDraft({ ...slotDraft, extraGroupIds: ids.length ? ids : undefined })} />
+            {mergeField({ value: slotDraft.extraGroupIds, subjectId: slotDraft.subjectId, groupId: slotDraft.groupId, onChange: (ids) => setSlotDraft({ ...slotDraft, extraGroupIds: ids.length ? ids : undefined }) })}
             <div className="flex justify-end gap-2"><button className="btn-secondary" onClick={() => setSlotDraft(null)}>Zrušit</button><button className="btn-primary" onClick={saveSlot}>Uložit</button></div>
           </div>
         )}
@@ -338,7 +339,7 @@ export function TimetablePage() {
                     <optgroup label="Skupiny">{myGroups.map((g) => <option key={g.id} value={`g${g.id}`}>{g.name}</option>)}</optgroup>
                   </select>
                 </Field>
-                <MergeField value={changeDraft.extraGroupIds} subjectId={changeDraft.subjectId} groupId={changeDraft.groupId} onChange={(ids) => setChangeDraft({ ...changeDraft, extraGroupIds: ids.length ? ids : undefined })} />
+                {mergeField({ value: changeDraft.extraGroupIds, subjectId: changeDraft.subjectId, groupId: changeDraft.groupId, onChange: (ids) => setChangeDraft({ ...changeDraft, extraGroupIds: ids.length ? ids : undefined }) })}
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Učebna"><input className="input" value={changeDraft.room ?? ''} onChange={(e) => setChangeDraft({ ...changeDraft, room: e.target.value })} /></Field>
                   <Field label="Poznámka (za koho, téma…)"><input className="input" value={changeDraft.note ?? ''} onChange={(e) => setChangeDraft({ ...changeDraft, note: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && saveChange()} /></Field>
