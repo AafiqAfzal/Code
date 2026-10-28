@@ -1,5 +1,19 @@
 # Změny
 
+## 3.1.0
+
+- Hodnocení: klik na název sloupce otevře úpravu celého hodnocení – název, datum, kategorie, váha a max. bodů se změní u všech žáků (známky zůstanou, z bodů se přepočítají); odtud lze sloupec i smazat
+- Hodnocení: pohyb v tabulce šipkami, po zápisu známky se kurzor posune na dalšího žáka; průměry a procenta s desetinnou čárkou (2,25)
+- Import žáků: prázdná buňka „Skupina“ už žáka z nikoho nevyřadí (vyřadí jen „-“); před importem přehled, co se stane (noví, upravení, přesunutí, nejasné řádky); žák, který změnil třídu, se podle data narození přesune, ne zdvojí; jmenovci v různých třídách se nespojí; předmět skupin se musí vybrat
+- Import známek: opakovaný import stejného souboru nic nezdvojí; neplatné hodnoty („2+“, text v bodech) se přeskočí a vypíšou; body s desetinnou čárkou („7,5“); bez sloupce jména se páruje jen jednoznačné příjmení
+- Export do Excelu přes bezpečnou knihovnu (stará knihovna xlsx s bezpečnostními chybami je pryč); čitelné názvy souborů („… 2026-2027 1. pololetí.xlsx“)
+- Poznámky k žákovi: volitelné datum (např. včerejší telefonát s rodiči) a úprava existujících poznámek
+- Rozvrh se vejde na šířku notebooku (akce dne pod datem), dlouhé názvy kroužků se zkrátí; zaškrtávání spojených skupin neztrácí kurzor
+- Přehled ve státní svátek a o prázdninách: pravidelné hodiny „nekoná se“, bez výzvy k zápisu
+- Potvrzení před smazáním tématu v plánu a před přidáním ukázkových dat k existujícím žákům
+- Texty: „1 zapsaná hodina / 2 zapsané hodiny / 5 zapsaných hodin“, „Zapomenutý PIN“, podklady na schůzky bez prázdného „Vyučující:“, počty dívek a chlapců jen když jsou známé
+- Zabezpečení desktopové verze: pravidla pro obsah stránky (CSP), přístup jen do složky Dokumenty/Pedagogický deník (ne do celých Dokumentů), funkční „Otevřít složku záloh“, odstraněná nepoužívaná součást; sestavení instalátoru z ověřených verzí nástrojů
+
 ## 3.0.8
 
 - Zasedací pořádek v desktopové verzi: přetahování žáků myší funguje (Windows ho dřív blokovalo); nově i přesun kliknutím – klik na žáka, pak na místo (prohození, klik na seznam = odsadit, Esc = zrušit); rychlé přesuny za sebou už žáky neztrácí

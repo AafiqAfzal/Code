@@ -12,14 +12,14 @@ Pro přenos mezi počítači slouží záloha ve formátu JSON (Nastavení → Z
 | **Kalendář** | Malý kalendář v levém menu (barevné tečky událostí, víkendy, státní svátky ČR, prázdniny), kliknutím velký měsíční kalendář s termíny testů, písemek, schůzek, porad, akcí a úkolů |
 | **Třídy a skupiny** | Kmenové třídy, rozdělení na skupiny (např. angličtina na půl s kolegyní), skupiny napříč třídami v ročníku, kroužky napříč ročníky, tlačítko „Rozdělit na poloviny“, zasedací pořádek a podklady na třídní schůzky u každé skupiny |
 | **Žáci** | Rychlé hledání v menu (Ctrl+K), seznam s filtry, export do Excelu, profil žáka s průměry za pololetí a podklady na schůzku s rodiči (kontakty, štítky IVP/PLPP/SPU…, poznámky s časovou osou: pochvaly, napomenutí, komunikace s rodiči), slovní hodnocení a návrh známky na vysvědčení |
-| **Hodnocení** | Klasifikační tabulka skupiny podle *Průběžného hodnocení 2026-27*: kategorie s váhami, známky nebo body (převod procent na známku dle nastavené škály), vážený průměr, návrh známky, přepínač pololetí, rychlý zápis klávesami 1–5 / N, export do Excelu pro přepis do Školy online, losování žáka |
+| **Hodnocení** | Klasifikační tabulka skupiny podle *Průběžného hodnocení 2026-27*: kategorie s váhami, známky nebo body (převod procent na známku dle nastavené škály), vážený průměr, návrh známky, přepínač pololetí, rychlý zápis klávesami 1–5 / N, export do Excelu pro přepis do Školy online, úprava hodnocení (název, datum, váha, max. bodů) klikem na sloupec, pohyb šipkami, losování žáka |
 | **Zápisy z hodin** | Datum, hodina, skupina, probrané učivo, domácí úkol, chybějící žáci; zápis může rovnou odškrtnout téma v tematickém plánu |
 | **Tematické plány** | Nahrání z Wordu (.docx) s automatickou detekcí nadpisů, odstavců, odrážek, tabulek, měsíců a hodinových dotací; odškrtávání probraného, procento plnění, tisk |
 | **Docházka** | Tabulka absencí žáků skupiny/třídy podle zápisů z hodin, po měsících nebo za celý rok, export XLSX a tisk |
 | **Zasedací pořádek** | Rozmístění žáků v lavicích přetahováním, náhodné rozesazení, tisk |
 | **Pracovní výkaz** | Evidence pracovní doby vyplněná z rozvrhu (přímá práce, suplování, kroužky, svátky, prázdniny), ruční úpravy, export do nahrané školní šablony XLSX se zachováním formátování a tiskových stran, tisk |
 | **Rozvrh** | Rozvrh po týdnech s daty: pravidelné hodiny a kroužky, odpadlé hodiny nebo celé dny (projektový den, nepřítomnost) s důvodem, suplování navíc, zápis hodiny přímo z políčka, fajfka u zapsaných; nahrání ze souboru JSON |
-| **Import známek** | Excel s žáky v řádcích a hodnoceními ve sloupcích (známky 1–5, body s maximem, N); spárování žáků podle jména |
+| **Import známek** | Excel (.xlsx) nebo CSV s žáky v řádcích a hodnoceními ve sloupcích (známky 1–5, body s maximem, N); spárování žáků podle jména |
 | **Import dat** | Excel se žáky (export „Karta žáka – seznam“ ze Školy online): automatické rozpoznání sloupců Třída / Příjmení / Jméno / Skupina / Ročník / Datum narození / Občanství, hodnota skupiny „-“ = bez skupiny, ruční úprava mapování, vytvoření tříd a skupin, volitelný štítek OMJ; Word s tematickým plánem |
 | **Nastavení** | Záložky Nastavení / Import dat / Pracovní výkaz; zámek PINem, připomínky, školní prázdniny (celostátní termíny MŠMT + vlastní), evidence pracovní doby (šablona a výchozí údaje), průvodce novým školním rokem, učitel, školní rok, konec 1. pololetí, předměty, kategorie hodnocení a váhy, procentní škála, text pravidel hodnocení, záloha/obnova, ukázková data |
 
@@ -81,7 +81,7 @@ z hlavní větve (v nastavení repozitáře zapněte Pages → Source: GitHub Ac
 
 React 19, TypeScript, Vite, Tailwind CSS 4, Dexie (IndexedDB), react-router, Tauri 2 (desktop),
 [mammoth](https://github.com/mwilliamson/mammoth.js) (čtení .docx),
-[ExcelJS](https://github.com/exceljs/exceljs) (čtení Excelu a šablona výkazu), [SheetJS](https://sheetjs.com/) (zápis Excelu), date-fns, lucide-react.
+[ExcelJS](https://github.com/exceljs/exceljs) (čtení a zápis Excelu, šablona výkazu), date-fns, lucide-react.
 
 ## Struktura
 
