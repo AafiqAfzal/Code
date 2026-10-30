@@ -1,6 +1,6 @@
 # Změny
 
-## Připravovaná verze
+## 3.2.0
 
 - Tisk tematického plánu jako dokument: hlavička (školní rok, předmět, ročník, vyučující, škola, plnění), tabulka Měsíc / Učivo / Hodiny / Probráno (data) / Realizovaná témata, nadpisy celků, podpis; respektuje filtr měsíce, „skrýt hotové“ a „realizovaná témata“
 - Tisk delších stránek pokračuje na dalších listech (dřív se uřízl po první stránce – týkalo se i pracovního výkazu a podkladů na schůzky)
