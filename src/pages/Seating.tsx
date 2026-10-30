@@ -38,18 +38,42 @@ export function SeatingPage() {
   }, [plan, groupId, classId])
 
   const save = (patch: Partial<SeatingPlan>) => plan && db.seatingPlans.update(plan.id, { ...patch, updatedAt: new Date().toISOString() })
-  const seatOf = (sid: number) => plan ? Number(Object.entries(plan.seats).find(([k, v]) => v === sid && Number(k) < plan.rows * plan.cols)?.[0] ?? -1) : -1
-  /** Změna počtu řad/míst: žáci zůstanou na svém místě (řada, pozice); kdo se nevejde, přejde mezi neposazené. */
+  const noSeat = (i: number) => !!plan?.noSeats?.includes(i)
+  const seatOf = (sid: number) => plan ? Number(Object.entries(plan.seats).find(([k, v]) => v === sid && Number(k) < plan.rows * plan.cols && !noSeat(Number(k)))?.[0] ?? -1) : -1
+  /** Změna počtu řad/lavic: žáci zůstanou na svém místě (řada, pozice); kdo se nevejde, přejde mezi neposazené. */
   const resize = (rows: number, cols: number) => {
     if (!plan) return
+    const map = (i: number) => {
+      const r = Math.floor(i / plan.cols), c = i % plan.cols
+      return r < rows && c < cols ? r * cols + c : -1
+    }
     const seats: Record<number, number> = {}
     for (const [k, sid] of Object.entries(plan.seats)) {
       const i = Number(k)
       if (i >= plan.rows * plan.cols) continue
-      const r = Math.floor(i / plan.cols), c = i % plan.cols
-      if (r < rows && c < cols) seats[r * cols + c] = sid
+      const j = map(i)
+      if (j >= 0) seats[j] = sid
     }
-    save({ rows, cols, seats })
+    const noSeats = (plan.noSeats ?? []).map(map).filter((j) => j >= 0)
+    save({ rows, cols, seats, noSeats })
+  }
+  // starší plány s lichým počtem míst v řadě → celé dvoumístné lavice
+  useEffect(() => { if (plan && plan.cols % 2) resize(plan.rows, plan.cols + 1) }, [plan?.id, plan?.cols]) // eslint-disable-line react-hooks/exhaustive-deps
+  /** Lavice jednomístná / dvoumístná (ubírá se pravé místo; kdo tam seděl, přesedne vlevo, nebo mezi neposazené) */
+  const toggleDesk = (row: number, desk: number) => {
+    if (!plan) return
+    const left = row * plan.cols + desk * 2, right = left + 1
+    db.seatingPlans.where('id').equals(plan.id).modify((p) => {
+      const ns = new Set(p.noSeats ?? [])
+      if (ns.has(left) || ns.has(right)) { ns.delete(left); ns.delete(right) }
+      else {
+        ns.add(right)
+        const sid = p.seats[right]
+        if (sid != null) { delete p.seats[right]; if (p.seats[left] == null) p.seats[left] = sid }
+      }
+      p.noSeats = [...ns]
+      p.updatedAt = new Date().toISOString()
+    })
   }
   const anySeated = () => !!plan && roster.some((s) => seatOf(s.id) >= 0)
   const unseated = roster.filter((s) => seatOf(s.id) < 0)
@@ -72,9 +96,12 @@ export function SeatingPage() {
   const shuffle = () => {
     if (!plan) return
     if (anySeated() && !confirm('Náhodné rozesazení nahradí současný zasedací pořádek. Pokračovat?')) return
-    const idx = Array.from({ length: plan.rows * plan.cols }, (_, i) => i).sort(() => Math.random() - 0.5)
+    // žáky náhodně zamícháme a posadíme od první lavice (lavice se zaplní celé, volná místa zůstanou vzadu)
+    const idx = Array.from({ length: plan.rows * plan.cols }, (_, i) => i).filter((i) => !noSeat(i))
+    const mixed = [...roster]
+    for (let i = mixed.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [mixed[i], mixed[j]] = [mixed[j], mixed[i]] }
     const seats: Record<number, number> = {}
-    roster.forEach((s, i) => { if (idx[i] != null) seats[idx[i]] = s.id })
+    mixed.forEach((s, i) => { if (idx[i] != null) seats[idx[i]] = s.id })
     save({ seats })
   }
   useEffect(() => {
@@ -97,7 +124,7 @@ export function SeatingPage() {
           {plan && (
             <>
               <label className="text-sm">Řady <input type="number" min={1} max={10} className="input w-16 inline-block" value={plan.rows} onChange={(e) => resize(Math.min(10, Math.max(1, Number(e.target.value) || 1)), plan.cols)} /></label>
-              <label className="text-sm">Místa v řadě <input type="number" min={1} max={12} className="input w-16 inline-block" value={plan.cols} onChange={(e) => resize(plan.rows, Math.min(12, Math.max(1, Number(e.target.value) || 1)))} /></label>
+              <label className="text-sm">Lavic v řadě <input type="number" min={1} max={6} className="input w-16 inline-block" value={Math.ceil(plan.cols / 2)} onChange={(e) => resize(plan.rows, 2 * Math.min(6, Math.max(1, Number(e.target.value) || 1)))} /></label>
               <button className="btn-secondary" onClick={shuffle}><Shuffle size={16} /> Náhodně rozesadit</button>
               <button className="btn-secondary" onClick={() => { if (!anySeated() || confirm('Vyprázdnit zasedací pořádek? Všichni žáci přejdou mezi neposazené.')) save({ seats: {} }) }}><Trash2 size={16} /> Vyprázdnit</button>
               <button className="btn-secondary" onClick={() => window.print()}><Printer size={16} /> Tisk</button>
@@ -110,22 +137,37 @@ export function SeatingPage() {
         <div className="grid gap-4 lg:grid-cols-[1fr_240px]">
           <div className="card card-body overflow-x-auto">
             <div className="mb-2 rounded bg-slate-800 py-1 text-center text-xs font-semibold text-white">TABULE / KATEDRA</div>
-            <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${plan.cols}, minmax(90px, 1fr))` }}>
-              {Array.from({ length: plan.rows * plan.cols }, (_, i) => {
-                const sid = plan.seats[i]
-                const s = students.find((x) => x.id === sid)
-                return (
-                  <div key={i} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (dragging != null) place(dragging, i); setDragging(null); setPicked(null) }}
-                    onClick={() => { if (picked != null) { if (picked !== s?.id) place(picked, i); setPicked(null) } else if (s) setPicked(s.id) }}
-                    className={`flex h-16 items-center justify-center rounded border text-center text-xs select-none ${s ? 'border-blue-300 bg-blue-50 cursor-grab' : 'border-dashed border-slate-300 bg-slate-50 text-slate-300'} ${s && picked === s.id ? 'ring-2 ring-amber-500' : ''} ${picked != null && picked !== s?.id ? 'cursor-pointer hover:border-amber-500' : ''} ${i % plan.cols === Math.floor(plan.cols / 2) - 1 && plan.cols > 2 ? 'mr-4' : ''}`}
-                    draggable={!!s} onDragStart={(e) => { if (!s) return; e.dataTransfer.setData('text/plain', String(s.id)); e.dataTransfer.effectAllowed = 'move'; setDragging(s.id) }} onDragEnd={() => setDragging(null)}
-                    onDoubleClick={() => { if (s) { place(s.id, null); setPicked(null) } }} title={s ? 'Klikněte a pak klikněte na jiné místo (nebo přetáhněte). Dvojklik = odsadit' : ''}>
-                    {s ? <span><b>{s.lastName}</b><br />{s.firstName}</span> : i + 1}
-                  </div>
-                )
-              })}
+            <div className="space-y-3">
+              {Array.from({ length: plan.rows }, (_, row) => (
+                <div key={row} className="flex justify-center gap-8">
+                  {Array.from({ length: plan.cols / 2 }, (_, desk) => {
+                    const left = row * plan.cols + desk * 2
+                    const single = noSeat(left) || noSeat(left + 1)
+                    return (
+                      <div key={desk} className="group/desk flex-1 max-w-64">
+                        <div className={`flex gap-1 rounded-md border-2 border-amber-700/30 bg-amber-50/60 p-1 ${single ? 'justify-center' : ''}`}>
+                          {[left, left + 1].filter((i) => !noSeat(i)).map((i) => {
+                            const sid = plan.seats[i]
+                            const s = students.find((x) => x.id === sid)
+                            return (
+                              <div key={i} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (dragging != null) place(dragging, i); setDragging(null); setPicked(null) }}
+                                onClick={() => { if (picked != null) { if (picked !== s?.id) place(picked, i); setPicked(null) } else if (s) setPicked(s.id) }}
+                                className={`flex h-14 flex-1 min-w-0 max-w-32 items-center justify-center rounded border text-center text-xs select-none ${s ? 'border-blue-300 bg-blue-50 cursor-grab' : 'border-dashed border-slate-300 bg-white text-slate-300'} ${s && picked === s.id ? 'ring-2 ring-amber-500' : ''} ${picked != null && picked !== s?.id ? 'cursor-pointer hover:border-amber-500' : ''}`}
+                                draggable={!!s} onDragStart={(e) => { if (!s) return; e.dataTransfer.setData('text/plain', String(s.id)); e.dataTransfer.effectAllowed = 'move'; setDragging(s.id) }} onDragEnd={() => setDragging(null)}
+                                onDoubleClick={() => { if (s) { place(s.id, null); setPicked(null) } }} title={s ? 'Klikněte a pak klikněte na jiné místo (nebo přetáhněte). Dvojklik = odsadit' : ''}>
+                                {s ? <span className="truncate px-0.5"><b>{s.lastName}</b><br />{s.firstName}</span> : <span className="no-print">volno</span>}
+                              </div>
+                            )
+                          })}
+                        </div>
+                        <button className="no-print mx-auto mt-0.5 block text-[10px] text-slate-400 opacity-0 hover:text-blue-700 hover:underline group-hover/desk:opacity-100" onClick={() => toggleDesk(row, desk)}>{single ? 'dvoumístná lavice' : 'jednomístná lavice'}</button>
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
             </div>
-            <p className="mt-2 text-xs text-slate-400 no-print">Klikněte na žáka a potom na místo (nebo ho přetáhněte myší). Na obsazeném místě se žáci prohodí. Dvojklik na žáka nebo klik na seznam vpravo ho odsadí.{picked != null && <b className="text-amber-700"> Vybraný žák: {fullName(students.find((x) => x.id === picked) ?? { firstName: '', lastName: '' })} – klikněte na místo, Esc = zrušit.</b>}</p>
+            <p className="mt-2 text-xs text-slate-400 no-print">Klikněte na žáka a potom na místo (nebo ho přetáhněte myší). Na obsazeném místě se žáci prohodí. Dvojklik na žáka nebo klik na seznam vpravo ho odsadí. Lavici přepnete na jednomístnou odkazem pod ní (po najetí myší).{picked != null && <b className="text-amber-700"> Vybraný žák: {fullName(students.find((x) => x.id === picked) ?? { firstName: '', lastName: '' })} – klikněte na místo, Esc = zrušit.</b>}</p>
           </div>
           <div className="card no-print">
             <div className="px-4 py-2 border-b border-slate-200 text-sm font-semibold">Neposazení ({unseated.length})</div>

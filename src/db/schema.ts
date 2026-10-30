@@ -215,8 +215,10 @@ export interface SeatingPlan {
   classId?: number
   rows: number
   cols: number
-  /** index sedadla (row*cols+col) → id žáka */
+  /** index sedadla (row*cols+col) → id žáka; cols = počet lavic v řadě × 2 */
   seats: Record<number, number>
+  /** místa bez židle – jednomístné lavice (index sedadla) */
+  noSeats?: number[]
   updatedAt: string
 }
 

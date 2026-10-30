@@ -1,5 +1,9 @@
 # Změny
 
+## Připravovaná verze
+
+- Zasedací pořádek po lavicích: v řadě dvoumístné lavice oddělené uličkou (výchozí 3 lavice, počet lze změnit), lavici lze přepnout na jednomístnou; náhodné rozesazení plní lavice od tabule, volná místa zůstanou vzadu; starší pořádky se převedou samy
+
 ## 3.1.0
 
 - Hodnocení: klik na název sloupce otevře úpravu celého hodnocení – název, datum, kategorie, váha a max. bodů se změní u všech žáků (známky zůstanou, z bodů se přepočítají); odtud lze sloupec i smazat
