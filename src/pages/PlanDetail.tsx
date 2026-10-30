@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowDown, ArrowLeft, ArrowUp, Plus, Trash2 } from 'lucide-react'
 import { db, type PlanItem } from '../db/schema'
-import { useClasses, useGroups, useSubjects } from '../components/hooks'
+import { useClasses, useGroups, useSettings, useSubjects } from '../components/hooks'
 import { PageHeader } from '../components/ui'
 import { MONTHS, fmtDate, todayISO } from '../lib/format'
 
@@ -12,6 +12,7 @@ export function PlanDetail() {
   const plan = useLiveQuery(() => db.plans.get(planId), [planId])
   const items = useLiveQuery(() => db.planItems.where('planId').equals(planId).sortBy('order'), [planId]) ?? []
   const subjects = useSubjects()
+  const settings = useSettings()
   const groups = useGroups()
   const classes = useClasses()
   // všechny zápisy z hodin navázané na položky plánu – jedno téma se může probírat víckrát
@@ -54,8 +55,15 @@ export function PlanDetail() {
     await db.planItems.bulkPut([{ ...i, order: other.order }, { ...other, order: i.order }])
   }
 
+  const subjectName = subjects.find((s) => s.id === plan.subjectId)?.name ?? ''
+  const planGroup = groups.find((g) => g.id === plan.groupId)
+  // měsíc v tisku jen u prvního řádku daného měsíce
+  const monthShown = (idx: number) => { const m = visible[idx].month; return !!m && visible.slice(0, idx).reverse().find((x) => x.level > 0 && x.month)?.month !== m }
+  const filterNote = [monthFilter && `jen ${monthFilter}`, hideDone && 'bez probraných témat'].filter(Boolean).join(', ')
+
   return (
     <div>
+      <div className="print:hidden">
       <Link to="/plany" className="btn-ghost btn-sm mb-2 no-print"><ArrowLeft size={14} /> Plány</Link>
       <PageHeader title={plan.title} subtitle={`${subjects.find((s) => s.id === plan.subjectId)?.name ?? ''}${plan.gradeLevel ? ` · ${plan.gradeLevel}. ročník` : ''} · splněno ${done}/${topics.length} (${pct} %)`} actions={
         <>
@@ -105,7 +113,54 @@ export function PlanDetail() {
           <button className="btn-primary" onClick={add}><Plus size={16} /></button>
         </div>
       </div>
-      <p className="mt-2 text-xs text-slate-400 no-print">Dvojklik na text = úprava. Tlačítko N/T přepíná nadpis tematického celku a téma. Téma lze také odškrtnout přímo ze zápisu z hodiny.</p>
+      <p className="mt-2 text-xs text-slate-400 no-print">Dvojklik na text = úprava. Tlačítko N/T přepíná nadpis tematického celku a téma. Téma lze také odškrtnout přímo ze zápisu z hodiny. Tisk respektuje filtr měsíce, „skrýt hotové“ a „realizovaná témata“.</p>
+      </div>
+
+      {/* tisková podoba: dokument, ne snímek obrazovky */}
+      <div className="hidden print:block text-black text-[10pt] leading-snug">
+        <div className="flex items-end justify-between border-b-2 border-black pb-1 mb-2">
+          <div>
+            <div className="text-[9pt] uppercase tracking-wide">Tematický plán{settings?.schoolYear ? ` · školní rok ${settings.schoolYear}` : ''}</div>
+            <h1 className="text-[15pt] font-bold leading-tight">{plan.title}</h1>
+          </div>
+          <div className="text-right text-[9pt]">{settings?.schoolName}</div>
+        </div>
+        <table className="mb-2 text-[9pt]"><tbody>
+          {subjectName && <tr><td className="pr-3 text-slate-600">Předmět:</td><td className="font-semibold">{subjectName}</td></tr>}
+          {plan.gradeLevel ? <tr><td className="pr-3 text-slate-600">Ročník:</td><td className="font-semibold">{plan.gradeLevel}.</td></tr> : null}
+          {planGroup && <tr><td className="pr-3 text-slate-600">Skupina:</td><td className="font-semibold">{planGroup.name}</td></tr>}
+          {settings?.teacherName && <tr><td className="pr-3 text-slate-600">Vyučující:</td><td className="font-semibold">{settings.teacherName}</td></tr>}
+          <tr><td className="pr-3 text-slate-600">Plnění:</td><td className="font-semibold">probráno {done} z {topics.length} témat ({pct} %){filterNote ? ` · výpis: ${filterNote}` : ''}</td></tr>
+        </tbody></table>
+        <table className="w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black [&_td]:px-1.5 [&_td]:py-0.5 [&_th]:px-1.5 [&_th]:py-1 [&_td]:align-top">
+          <thead>
+            <tr className="bg-slate-100 text-left text-[8.5pt]">
+              <th className="w-[13%]">Měsíc</th>
+              <th>Učivo / téma</th>
+              <th className="w-[6%] text-center">Hod.</th>
+              <th className="w-[15%]">Probráno</th>
+              {showNotes && <th className="w-[26%]">Realizovaná témata / poznámka</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((i, idx) => i.level === 0 ? (
+              <tr key={i.id} className="break-inside-avoid break-after-avoid bg-slate-100"><td colSpan={showNotes ? 5 : 4} className="font-bold">{i.text}</td></tr>
+            ) : (
+              <tr key={i.id} className="break-inside-avoid">
+                <td className="text-[8.5pt]">{monthShown(idx) && i.month ? i.month.charAt(0).toUpperCase() + i.month.slice(1) : ''}</td>
+                <td>{i.text}</td>
+                <td className="text-center">{i.hours ?? ''}</td>
+                <td className="text-[8.5pt]">{datesOf(i).map((d) => fmtDate(d.date, 'd. M.')).join(', ') || (i.done ? '✓' : '')}</td>
+                {showNotes && <td className="text-[8.5pt] whitespace-pre-wrap">{i.note ?? ''}</td>}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="mt-6 flex justify-between text-[9pt]">
+          <span>Vytištěno {fmtDate(todayISO())}</span>
+          <span>Podpis vyučujícího: ..................................................</span>
+        </div>
+      </div>
     </div>
   )
 }
