@@ -2,6 +2,7 @@
 
 ## Připravovaná verze
 
+- Zápisy z hodin: filtr podle předmětu a třídy či skupiny (třída ukáže i zápisy svých skupin); výběr si aplikace pamatuje, „Zrušit filtr“ vrátí všechny zápisy
 - Zasedací pořádek po lavicích: v řadě dvoumístné lavice oddělené uličkou (výchozí 3 lavice, počet lze změnit), lavici lze přepnout na jednomístnou; náhodné rozesazení plní lavice od tabule, volná místa zůstanou vzadu; starší pořádky se převedou samy
 
 ## 3.1.0

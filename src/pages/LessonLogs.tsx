@@ -17,7 +17,11 @@ export function LessonLogsPage() {
   const myGroups = useMyGroups()
   const classes = useClasses()
   const students = useStudents()
-  const [filterGroup, setFilterGroup] = useState<number | ''>('')
+  // filtr seznamu: předmět + třída/skupina ('g12' / 'c3'); pamatuje se v tomto prohlížeči
+  const [filter, setFilterState] = useState<{ subjectId: number | ''; unit: string }>(() => {
+    try { return { subjectId: '', unit: '', ...JSON.parse(localStorage.getItem('zapisyFiltr') ?? '{}') } } catch { return { subjectId: '', unit: '' } }
+  })
+  const setFilter = (f: { subjectId: number | ''; unit: string }) => { setFilterState(f); try { localStorage.setItem('zapisyFiltr', JSON.stringify(f)) } catch { /* ignore */ } }
   const logs = useLiveQuery(() => db.lessonLogs.orderBy('date').reverse().toArray(), []) ?? []
   const plansRaw = useLiveQuery(() => db.plans.toArray(), [])
   const planItemsRaw = useLiveQuery(() => db.planItems.orderBy('order').toArray(), [])
@@ -61,7 +65,21 @@ export function LessonLogsPage() {
     return extra.length ? `${base} + ${extra.join(' + ')}` : base
   }
   const mergeable = (d: Draft) => myGroups.filter((g) => g.id !== d.groupId && (!g.subjectId || g.subjectId === d.subjectId))
-  const visible = filterGroup ? logs.filter((l) => l.groupId === filterGroup || l.extraGroupIds?.includes(filterGroup)) : logs
+  // ke které třídě patří skupina (podle tříd jejích žáků) – aby filtr třídy ukázal i zápisy jejích skupin
+  const groupClassIds = (gid?: number) => {
+    const g = groups.find((x) => x.id === gid)
+    return new Set(g ? students.filter((st) => g.studentIds.includes(st.id)).map((st) => st.classId) : [])
+  }
+  const filterGroups = myGroups.filter((g) => !filter.subjectId || !g.subjectId || g.subjectId === filter.subjectId)
+  // zapamatovaná skupina/třída mezitím mohla zaniknout → filtr nepoužít
+  const unitExists = filter.unit.startsWith('g') ? groups.some((g) => g.id === Number(filter.unit.slice(1))) : classes.some((c) => c.id === Number(filter.unit.slice(1)))
+  const matchesUnit = (l: LessonLog) => {
+    if (!filter.unit || !unitExists) return true
+    const id = Number(filter.unit.slice(1))
+    if (filter.unit.startsWith('g')) return l.groupId === id || !!l.extraGroupIds?.includes(id)
+    return l.classId === id || [l.groupId, ...(l.extraGroupIds ?? [])].some((gid) => gid != null && groupClassIds(gid).has(id))
+  }
+  const visible = logs.filter((l) => (!filter.subjectId || l.subjectId === filter.subjectId) && matchesUnit(l))
 
   /**
    * Zápis už na téma plánu neodkazuje (přepojen na jiné téma nebo smazán): když na téma
@@ -107,12 +125,23 @@ export function LessonLogsPage() {
     <div>
       <PageHeader title="Zápisy z hodin" subtitle="Co se probralo, kdo chyběl, domácí úkoly" actions={
         <>
-          <select className="input w-auto" value={filterGroup} onChange={(e) => setFilterGroup(Number(e.target.value) || '')}><option value="">Všechny skupiny</option>{myGroups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select>
+          <select className="input w-auto" value={filter.subjectId} onChange={(e) => {
+            const subjectId = Number(e.target.value) || ''
+            // skupina jiného předmětu by po změně předmětu nedávala smysl
+            const g = filter.unit.startsWith('g') ? groups.find((x) => x.id === Number(filter.unit.slice(1))) : undefined
+            setFilter({ subjectId, unit: g && subjectId && g.subjectId && g.subjectId !== subjectId ? '' : filter.unit })
+          }}><option value="">Všechny předměty</option>{subjects.map((sub) => <option key={sub.id} value={sub.id}>{sub.name}</option>)}</select>
+          <select className="input w-auto" value={filter.unit} onChange={(e) => setFilter({ ...filter, unit: e.target.value })}>
+            <option value="">Všechny třídy a skupiny</option>
+            {classes.length > 0 && <optgroup label="Třídy">{classes.map((c) => <option key={c.id} value={`c${c.id}`}>{c.name}</option>)}</optgroup>}
+            {filterGroups.length > 0 && <optgroup label="Skupiny">{filterGroups.map((g) => <option key={g.id} value={`g${g.id}`}>{g.name}</option>)}</optgroup>}
+          </select>
           <button className="btn-primary" onClick={() => setDraft(newDraft())}><Plus size={16} /> Nový zápis</button>
         </>
       } />
       <div className="card">
-        {visible.length === 0 && <div className="card-body text-sm text-slate-500">Zatím žádné zápisy.</div>}
+        {(filter.subjectId || filter.unit) && logs.length > 0 && <div className="px-4 py-2 border-b border-slate-200 text-xs text-slate-500 flex justify-between"><span>Zobrazeno {visible.length} z {logs.length} zápisů</span><button className="text-blue-700 hover:underline" onClick={() => setFilter({ subjectId: '', unit: '' })}>Zrušit filtr</button></div>}
+        {visible.length === 0 && <div className="card-body text-sm text-slate-500">{logs.length ? 'Pro tento výběr nejsou žádné zápisy.' : 'Zatím žádné zápisy.'}</div>}
         <ul className="divide-y divide-slate-100">
           {visible.map((l) => (
             <li key={l.id} className="px-4 py-3 hover:bg-slate-50 cursor-pointer" onClick={() => setDraft({ ...l })}>
