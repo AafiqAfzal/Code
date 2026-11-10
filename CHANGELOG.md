@@ -1,6 +1,6 @@
 # Změny
 
-## Připravovaná verze
+## 3.2.1
 
 - Tisk tematického plánu bez sloupce „Realizovaná témata / poznámka“
 
