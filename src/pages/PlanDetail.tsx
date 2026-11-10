@@ -113,7 +113,7 @@ export function PlanDetail() {
           <button className="btn-primary" onClick={add}><Plus size={16} /></button>
         </div>
       </div>
-      <p className="mt-2 text-xs text-slate-400 no-print">Dvojklik na text = úprava. Tlačítko N/T přepíná nadpis tematického celku a téma. Téma lze také odškrtnout přímo ze zápisu z hodiny. Tisk respektuje filtr měsíce, „skrýt hotové“ a „realizovaná témata“.</p>
+      <p className="mt-2 text-xs text-slate-400 no-print">Dvojklik na text = úprava. Tlačítko N/T přepíná nadpis tematického celku a téma. Téma lze také odškrtnout přímo ze zápisu z hodiny. Tisk respektuje filtr měsíce a „skrýt hotové“; realizovaná témata se netisknou.</p>
       </div>
 
       {/* tisková podoba: dokument, ne snímek obrazovky */}
@@ -138,20 +138,18 @@ export function PlanDetail() {
               <th className="w-[13%]">Měsíc</th>
               <th>Učivo / téma</th>
               <th className="w-[6%] text-center">Hod.</th>
-              <th className="w-[15%]">Probráno</th>
-              {showNotes && <th className="w-[26%]">Realizovaná témata / poznámka</th>}
+              <th className="w-[18%]">Probráno</th>
             </tr>
           </thead>
           <tbody>
             {visible.map((i, idx) => i.level === 0 ? (
-              <tr key={i.id} className="break-inside-avoid break-after-avoid bg-slate-100"><td colSpan={showNotes ? 5 : 4} className="font-bold">{i.text}</td></tr>
+              <tr key={i.id} className="break-inside-avoid break-after-avoid bg-slate-100"><td colSpan={4} className="font-bold">{i.text}</td></tr>
             ) : (
               <tr key={i.id} className="break-inside-avoid">
                 <td className="text-[8.5pt]">{monthShown(idx) && i.month ? i.month.charAt(0).toUpperCase() + i.month.slice(1) : ''}</td>
                 <td>{i.text}</td>
                 <td className="text-center">{i.hours ?? ''}</td>
                 <td className="text-[8.5pt]">{datesOf(i).map((d) => fmtDate(d.date, 'd. M.')).join(', ') || (i.done ? '✓' : '')}</td>
-                {showNotes && <td className="text-[8.5pt] whitespace-pre-wrap">{i.note ?? ''}</td>}
               </tr>
             ))}
           </tbody>
