@@ -1,6 +1,6 @@
 # Změny
 
-## Připravovaná verze
+## 3.3.0
 
 - Nová stránka „Třídní schůzky“ (v menu Výuka, odkaz i u třídy): report pro předmět a třídu/skupinu – stav ke zvolenému dni (výchozí dnes) za pololetí, do kterého den spadá; přehled celé třídy (známky s body, průměr, návrh, absence, pochvaly/napomenutí, poznámka, „K projednání“) a kartičky pro rodiče k rozstřižení s poznámkou, kterou napíšete před tiskem (ukládá se, jedna na žáka); tiskne se na šířku
 - Report u třídy: odkaz z Tříd otevře předmět, který učíte celé třídě (např. zeměpis); u předmětu učeného ve skupinách jen vaši žáci; absence každého žáka jen z hodin jeho třídy/skupiny (i spojených)
