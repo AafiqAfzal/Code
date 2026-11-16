@@ -2,6 +2,7 @@
 
 ## Připravovaná verze
 
+- Hodnocení: hlavička tabulky (datum, název, váha) zůstává při posouvání dolů vidět, jména žáků vlevo při posouvání do strany
 - Spojené skupiny (rozvrh, suplování, zápis z hodiny): nabízejí se i skupiny kolegyně (označené „(kolegyně)“), vždy jen stejného předmětu a ročníku
 - Nová stránka „Třídní schůzky“ (v menu Výuka, odkaz i u třídy): report pro předmět a třídu/skupinu za 1. čtvrtletí, 1. pololetí, 3. čtvrtletí nebo 2. pololetí – přehled celé třídy (známky s body, průměr, návrh, absence, pochvaly/napomenutí, poznámka, „K projednání“) a kartičky pro rodiče k rozstřižení s poznámkou, kterou napíšete před tiskem (ukládá se); tiskne se na šířku
 - Nastavení: konec 1. a 3. čtvrtletí (výchozí 15. 11. a 15. 4.)

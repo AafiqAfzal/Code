@@ -175,7 +175,7 @@ export function GradesPage() {
       ) : (
         <div className="card overflow-auto max-h-[calc(100vh-12rem)] print:max-h-none print:overflow-visible">
           <table className="table !w-auto whitespace-nowrap">
-            <thead className="[&_th]:sticky [&_th]:top-0 [&_th]:z-20 [&_th]:bg-slate-50">
+            <thead className="[&_th]:sticky [&_th]:top-0 [&_th]:z-20 [&_th]:bg-slate-50 [&_th]:shadow-[0_1px_0_#cbd5e1]">
               <tr>
                 <th className="left-0 !z-30">Žák</th>
                 {columns.map((c) => {
