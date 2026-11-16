@@ -2,6 +2,8 @@
 
 ## Připravovaná verze
 
+- Desktopová aplikace se otevírá přes celou obrazovku; okno jde zúžit až na 480 px (dřív min. 900 px), takže se vejde na polovinu obrazovky notebooku vedle Školy online
+- Úzké okno (pod 1024 px): menu se schová pod tlačítko ☰ a obsah dostane celou šířku
 - Hodnocení: hlavička tabulky (datum, název, váha) zůstává při posouvání dolů vidět, jména žáků vlevo při posouvání do strany
 - Spojené skupiny (rozvrh, suplování, zápis z hodiny): nabízejí se i skupiny kolegyně (označené „(kolegyně)“), vždy jen stejného předmětu a ročníku
 - Nová stránka „Třídní schůzky“ (v menu Výuka, odkaz i u třídy): report pro předmět a třídu/skupinu za 1. čtvrtletí, 1. pololetí, 3. čtvrtletí nebo 2. pololetí – přehled celé třídy (známky s body, průměr, návrh, absence, pochvaly/napomenutí, poznámka, „K projednání“) a kartičky pro rodiče k rozstřižení s poznámkou, kterou napíšete před tiskem (ukládá se); tiskne se na šířku

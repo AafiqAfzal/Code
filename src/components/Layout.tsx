@@ -35,7 +35,7 @@ export function Layout() {
   const { pathname } = useLocation()
   return (
     <div className="flex h-full">
-      <aside className={`no-print fixed inset-y-0 left-0 z-40 flex w-60 transform flex-col bg-blue-900 text-blue-100 transition-transform md:static md:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`no-print fixed inset-y-0 left-0 z-40 flex w-60 transform flex-col bg-blue-900 text-blue-100 transition-transform lg:static lg:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex items-center gap-2 px-4 py-4 border-b border-blue-800">
           <Users size={22} />
           <div>
@@ -63,9 +63,9 @@ export function Layout() {
         <div className="p-2 border-t border-blue-800"><MiniCalendar onNavigate={() => setOpen(false)} /></div>
         {settings?.teacherName && <div className="px-4 py-2 text-xs text-blue-300 border-t border-blue-800">{settings.teacherName}</div>}
       </aside>
-      {open && <div className="fixed inset-0 z-30 bg-black/30 md:hidden" onClick={() => setOpen(false)} />}
+      {open && <div className="fixed inset-0 z-30 bg-black/30 lg:hidden" onClick={() => setOpen(false)} />}
       <main className="flex-1 overflow-y-auto">
-        <div className="md:hidden no-print flex items-center gap-2 bg-blue-900 text-white px-3 py-2">
+        <div className="lg:hidden no-print flex items-center gap-2 bg-blue-900 text-white px-3 py-2">
           <button onClick={() => setOpen(true)} aria-label="Menu"><Menu /></button>
           <span className="font-semibold">Pedagogický deník</span>
         </div>
