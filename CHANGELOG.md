@@ -1,5 +1,9 @@
 # Změny
 
+## Připravovaná verze
+
+- Report na schůzky: „K projednání“ už neuvádí jednotlivé chybějící známky (N); upozorní jen na žáka, který nemá v pololetí ani jedno hodnocení
+
 ## 3.3.0
 
 - Nová stránka „Třídní schůzky“ (v menu Výuka, odkaz i u třídy): report pro předmět a třídu/skupinu – stav ke zvolenému dni (výchozí dnes) za pololetí, do kterého den spadá; přehled celé třídy (známky s body, průměr, návrh, absence, pochvaly/napomenutí, poznámka, „K projednání“) a kartičky pro rodiče k rozstřižení s poznámkou, kterou napíšete před tiskem (ukládá se, jedna na žáka); tiskne se na šířku

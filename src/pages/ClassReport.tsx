@@ -97,9 +97,10 @@ export function ClassReportPage() {
     const notes = (data?.notes ?? []).filter((n) => n.studentId === s.id)
     const plus = notes.filter((n) => n.kind === 'pochvala').length
     const minus = notes.filter((n) => n.kind === 'napomenuti').length
-    const hasN = mine.some((a) => a.absent)
+    // k projednání jen tehdy, když žák nemá v pololetí ani jednu známku (jednotlivé N se neuvádějí)
+    const noGrade = avg == null
     const note = data?.reportNotes.find((r) => r.studentId === s.id)
-    const flags = [taught && pct >= 25 ? 'absence nad 25 %' : '', hasN ? 'chybí hodnocení (N)' : '', prop != null && prop >= 4 ? `návrh ${prop}` : '', minus >= 2 ? `${minus}× napomenutí` : ''].filter(Boolean)
+    const flags = [taught && pct >= 25 ? 'absence nad 25 %' : '', noGrade ? 'bez hodnocení' : '', prop != null && prop >= 4 ? `návrh ${prop}` : '', minus >= 2 ? `${minus}× napomenutí` : ''].filter(Boolean)
     const level = (taught && pct >= 25) || (prop != null && prop >= 4) ? 'warn' : flags.length ? 'mild' : ''
     return { s, mine, avg, prop, abs, pct, plus, minus, note, flags, level, lastNote: notes.sort((a, b) => b.date.localeCompare(a.date))[0] }
   })
