@@ -27,6 +27,7 @@ export function StudentDetail() {
   const assessments = useLiveQuery(() => db.assessments.where('studentId').equals(studentId).toArray(), [studentId]) ?? []
   const evals = useLiveQuery(() => db.termEvaluations.where('studentId').equals(studentId).toArray(), [studentId]) ?? []
   const logs = useLiveQuery(() => db.lessonLogs.filter((l) => l.absentStudentIds.includes(studentId)).toArray(), [studentId]) ?? []
+  const yearLogs = logs.filter((l) => (!settings?.yearStart || l.date >= settings.yearStart) && (!settings?.yearEnd || l.date <= settings.yearEnd))
   const [edit, setEdit] = useState<Partial<Student> | null>(null)
   const [noteText, setNoteText] = useState('')
   const [noteKind, setNoteKind] = useState<StudentNoteKind>('poznamka')
@@ -96,7 +97,7 @@ export function StudentDetail() {
                 <dt className="text-slate-500">Občanství</dt><dd>{student.citizenship || '—'}</dd>
                 <dt className="text-slate-500">Pohlaví</dt><dd>{student.gender ? GENDER_LABEL[student.gender] : '—'}</dd>
                 <dt className="text-slate-500">Skupiny</dt><dd>{myGroups.map((g) => g.name).join(', ') || '—'}</dd>
-                <dt className="text-slate-500">Absence</dt><dd>{logs.length} h (dle zápisů)</dd>
+                <dt className="text-slate-500">Absence</dt><dd>{yearLogs.length} h <span className="text-xs text-slate-500">(letošní školní rok, všechny předměty, dle zápisů)</span></dd>
                 <dt className="text-slate-500">Poznámka</dt><dd className="whitespace-pre-wrap">{student.note || '—'}</dd>
               </dl>
             )}
@@ -121,7 +122,9 @@ export function StudentDetail() {
             <div className="card-body space-y-4">
               {subjects.filter((s) => assessments.some((a) => a.subjectId === s.id) || myGroups.some((g) => g.subjectId === s.id)).map((s) => {
                 const mine = assessments.filter((a) => a.subjectId === s.id).sort((a, b) => b.date.localeCompare(a.date))
-                const avg = weightedAverage(mine, scale)
+                // „rok“ = jen letošní školní rok (starší známky by průměr zkreslily)
+                const yr = termRange(0, settings)
+                const avg = weightedAverage(mine.filter((a) => a.date >= yr.from && a.date <= yr.to), scale)
                 const t1 = termRange(1, settings), t2 = termRange(2, settings)
                 const avg1 = weightedAverage(mine.filter((a) => a.date >= t1.from && a.date <= t1.to), scale)
                 const avg2 = weightedAverage(mine.filter((a) => a.date >= t2.from && a.date <= t2.to), scale)

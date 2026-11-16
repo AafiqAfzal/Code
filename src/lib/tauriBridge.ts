@@ -115,7 +115,9 @@ export function installTauriBridge() {
     openBackupDir: async () => { await ensureBackupDir(); await openPath(await join(await documentDir(), BACKUP_DIR)) },
     listBackups: async () => {
       if (!(await exists(BACKUP_DIR, { baseDir: BaseDirectory.Document }))) return []
-      return (await readDir(BACKUP_DIR, { baseDir: BaseDirectory.Document })).map((f) => f.name).filter((n): n is string => !!n && n.endsWith('.json')).sort().reverse()
+      // nejnovější první podle data a času v názvu (denní záloha bez času = konec dne); cizí názvy na konec
+      const key = (n: string) => { const m = n.match(/^pedagogicky-denik-(\d{4}-\d{2}-\d{2})(?:-(\d{4}))?/); return m ? `${m[1]}-${m[2] ?? '2400'}` : '' }
+      return (await readDir(BACKUP_DIR, { baseDir: BaseDirectory.Document })).map((f) => f.name).filter((n): n is string => !!n && n.endsWith('.json')).sort((a, b) => key(b).localeCompare(key(a)) || b.localeCompare(a))
     },
     readBackup: (name) => readTextFile(`${BACKUP_DIR}/${name}`, { baseDir: BaseDirectory.Document }),
     notify: async (title, body) => {

@@ -1,5 +1,5 @@
 import { format } from 'date-fns'
-import { downloadBlob, exportBackup, hasUserData, importBackup } from './backup'
+import { backupSummary, downloadBlob, exportBackup, hasUserData, importBackup } from './backup'
 import { todayISO } from './format'
 
 export const isDesktop = () => !!window.denik?.isDesktop
@@ -61,4 +61,11 @@ export async function restoreBackup(file: File): Promise<string | null> {
   const safety = await safetyBackup('pred-obnovou')
   await importBackup(file, 'replace')
   return safety
+}
+
+/** Dotaz před obnovou ze souboru: co záloha obsahuje (a varování, když je prázdná). */
+export async function confirmRestore(file: File, extra = ''): Promise<boolean> {
+  const sum = backupSummary(await file.text())
+  const what = sum.records === 0 ? 'POZOR: záloha je prázdná nebo poškozená (neobsahuje žáky ani záznamy).' : `Záloha obsahuje ${sum.students} žáků${sum.exportedAt ? `, uložena ${new Date(sum.exportedAt).toLocaleString('cs-CZ')}` : ''}.`
+  return confirm(`Obnovit data ze zálohy ${file.name}?\n${what}\n\nSoučasná data se nahradí. ${isDesktop() ? 'Současný stav se předtím uloží do složky záloh' : 'Současný stav se předtím stáhne jako soubor'} „…-pred-obnovou.json“.${extra}`)
 }

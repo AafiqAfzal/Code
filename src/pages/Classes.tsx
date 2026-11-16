@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { deleteClass } from '../lib/remove'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { deleteClass, deleteGroup, groupDeleteSummary } from '../lib/remove'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Plus, Users, Sparkles, Armchair, Printer, CalendarCheck } from 'lucide-react'
 import { db, type Group, type SchoolClass } from '../db/schema'
@@ -18,6 +19,8 @@ export function ClassesPage() {
   const [params, setParams] = useSearchParams()
   const selectedClassId = Number(params.get('class')) || classes[0]?.id
   const selectedClass = classes.find((c) => c.id === selectedClassId)
+  // předmět, který ve třídě učím celé třídě (podle rozvrhu, např. zeměpis) – pro report na schůzky
+  const wholeClassSubject = useLiveQuery(async () => selectedClassId ? (await db.timetable.filter((t) => t.classId === selectedClassId && !t.groupId && !!t.subjectId).first())?.subjectId : undefined, [selectedClassId])
   const [classDraft, setClassDraft] = useState<Partial<SchoolClass> | null>(null)
   const [groupDraft, setGroupDraft] = useState<(Omit<Group, 'id'> & { id?: number }) | null>(null)
 
@@ -82,7 +85,7 @@ export function ClassesPage() {
                       <Link to={`/dochazka?groupId=${g.id}`} className="btn-secondary btn-sm">Docházka</Link>
                       <Link to={`/zasedaci?groupId=${g.id}`} className="btn-secondary btn-sm" title="Zasedací pořádek"><Armchair size={14} /></Link>
                       <button className="btn-secondary btn-sm" onClick={() => setGroupDraft({ ...g })}>Upravit</button>
-                      <ConfirmButton onConfirm={() => db.groups.delete(g.id)}>×</ConfirmButton>
+                      <ConfirmButton onConfirm={async () => { const n = await groupDeleteSummary(g.id); if ((n.grades || n.logs || n.slots) && !confirm(`Smazat skupinu ${g.name}?\nZ rozvrhu zmizí ${n.slots} hodin. ${n.grades} známek a ${n.logs} zápisů z hodin zůstane uloženo u žáků, ale skupina už nebude k výběru.`)) return; await deleteGroup(g.id) }}>×</ConfirmButton>
                     </div>
                   </div>
                   <div className="card-body text-sm columns-2 gap-4">{members.map((s) => <div key={s!.id} className="truncate">{fullName(s!)} <span className="text-slate-400 text-xs">{classes.find((c) => c.id === s!.classId)?.name}</span></div>)}</div>
@@ -118,7 +121,7 @@ export function ClassesPage() {
                   <Link to={`/zasedaci?classId=${selectedClass.id}`} className="btn-secondary btn-sm"><Armchair size={14} /> Zasedací pořádek</Link>
                   <Link to={`/dochazka?classId=${selectedClass.id}`} className="btn-secondary btn-sm"><CalendarCheck size={14} /> Docházka</Link>
                   <Link to={`/tisk?classId=${selectedClass.id}`} className="btn-secondary btn-sm"><Printer size={14} /> Podklady na schůzky</Link>
-                  <Link to={`/report?classId=${selectedClass.id}`} className="btn-secondary btn-sm"><Printer size={14} /> Report na třídní schůzky</Link>
+                  <Link to={`/report?classId=${selectedClass.id}${wholeClassSubject ? `&subjectId=${wholeClassSubject}` : ''}`} className="btn-secondary btn-sm"><Printer size={14} /> Report na třídní schůzky</Link>
                   <button className="btn-secondary btn-sm" onClick={() => setClassDraft({ ...selectedClass })}>Upravit</button>
                   <button className="btn-primary btn-sm" onClick={() => setGroupDraft({ name: '', gradeLevel: selectedClass.gradeLevel, subjectId: subjects[0]?.id, studentIds: [], color: COLORS[gradeGroups.length % COLORS.length] })}><Plus size={14} /> Nová skupina</button>
                   <ConfirmButton onConfirm={async () => { const err = await deleteClass(selectedClass.id); if (err) alert(err); else setParams({}) }}>Smazat třídu</ConfirmButton>
@@ -161,7 +164,7 @@ export function ClassesPage() {
                           <Link to={`/zasedaci?groupId=${g.id}`} className="btn-secondary btn-sm" title="Zasedací pořádek"><Armchair size={14} /></Link>
                           <Link to={`/tisk?groupId=${g.id}`} className="btn-secondary btn-sm" title="Podklady na třídní schůzky (tisk)"><Printer size={14} /></Link>
                           <button className="btn-secondary btn-sm" onClick={() => setGroupDraft({ ...g })}>Upravit</button>
-                          <ConfirmButton onConfirm={() => db.groups.delete(g.id)}>×</ConfirmButton>
+                          <ConfirmButton onConfirm={async () => { const n = await groupDeleteSummary(g.id); if ((n.grades || n.logs || n.slots) && !confirm(`Smazat skupinu ${g.name}?\nZ rozvrhu zmizí ${n.slots} hodin. ${n.grades} známek a ${n.logs} zápisů z hodin zůstane uloženo u žáků, ale skupina už nebude k výběru.`)) return; await deleteGroup(g.id) }}>×</ConfirmButton>
                         </div>
                       </div>
                       <div className="card-body text-sm columns-2 gap-4">

@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Download } from 'lucide-react'
 import ExcelJS from 'exceljs/dist/exceljs.min.js'
 import { db } from '../db/schema'
-import { rosterOf, useClasses, useGroups, useSettings, useStudents, useSubjects, useTeachingUnits } from '../components/hooks'
+import { groupLabel, rosterOf, useClasses, useGroups, useSettings, useStudents, useSubjects, useTeachingUnits } from '../components/hooks'
 import { PageHeader } from '../components/ui'
 import { addSheet, downloadWorkbook, safeFileName } from '../lib/export'
 import { MONTHS, fmtDate, fullName, genderClass } from '../lib/format'
@@ -35,15 +35,20 @@ export function AttendancePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subjectId, units.loaded, units.groups.length, units.classes.length])
   const [month, setMonth] = useState('')
+  // skupiny kolegů – kvůli absencím ze spojených hodin, kdy jsem učila i jejich žáky
+  const colleagueGroups = units.allGroups.filter((g) => g.mine === false && (!g.subjectId || g.subjectId === subjectId))
   const sel = groupId ? `g${groupId}` : classId ? `c${classId}` : ''
   const group = groups.find((g) => g.id === groupId)
   const roster = useMemo(() => rosterOf(students, groups, { groupId: group?.id, classId: group ? undefined : classId }), [group, classId, students, groups])
   const logs = useLiveQuery(async () => {
     if (!groupId && !classId) return []
-    // i zápisy, kde je skupina připojená jako spojená (kolegyně chyběla)
-    const all = groupId ? (await db.lessonLogs.toArray()).filter((l) => l.groupId === groupId || l.extraGroupIds?.includes(groupId)) : await db.lessonLogs.where('classId').equals(classId!).toArray()
-    return all.sort((a, b) => a.date.localeCompare(b.date) || (a.lessonNumber ?? 0) - (b.lessonNumber ?? 0))
-  }, [groupId, classId]) ?? []
+    // jen letošní školní rok (zápisy z minulých let by se v měsících sčítaly)
+    const from = settings?.yearStart ?? '0000', to = settings?.yearEnd ?? '9999'
+    // i zápisy, kde je skupina připojená jako spojená (kolegyně chyběla); u třídy jen hodiny vybraného předmětu, bez suplování
+    const all = groupId ? (await db.lessonLogs.toArray()).filter((l) => l.groupId === groupId || l.extraGroupIds?.includes(groupId))
+      : (await db.lessonLogs.where('classId').equals(classId!).toArray()).filter((l) => (!subjectId || l.subjectId === subjectId) && l.kind !== 'suplovani')
+    return all.filter((l) => l.date >= from && l.date <= to).sort((a, b) => a.date.localeCompare(b.date) || (a.lessonNumber ?? 0) - (b.lessonNumber ?? 0))
+  }, [groupId, classId, subjectId, settings?.yearStart, settings?.yearEnd]) ?? []
   const filtered = month ? logs.filter((l) => Number(l.date.slice(5, 7)) === MONTH_NUM[month]) : logs
   const absent = (sid: number) => filtered.filter((l) => l.absentStudentIds.includes(sid))
   const title = `Docházka ${group?.name ?? classes.find((c) => c.id === classId)?.name ?? ''}${month ? ` – ${month}` : ''} ${settings?.schoolYear ?? ''}`
@@ -66,6 +71,7 @@ export function AttendancePage() {
           <select className="input w-auto" value={sel} onChange={(e) => { const v = e.target.value; setSel(v.startsWith('g') ? { groupId: v.slice(1) } : v ? { classId: v.slice(1) } : {}) }}>
             <option value="">— vyberte —</option>
             {units.groups.length > 0 && <optgroup label="Skupiny">{units.groups.map((g) => <option key={g.id} value={`g${g.id}`}>{g.name}</option>)}</optgroup>}
+            {colleagueGroups.length > 0 && <optgroup label="Skupiny kolegů (spojené hodiny)">{colleagueGroups.map((g) => <option key={g.id} value={`g${g.id}`}>{groupLabel(g)}</option>)}</optgroup>}
             {units.classes.length > 0 && <optgroup label="Třídy">{units.classes.map((c) => <option key={c.id} value={`c${c.id}`}>{c.name}</option>)}</optgroup>}
           </select>
           <select className="input w-auto" value={month} onChange={(e) => setMonth(e.target.value)}><option value="">Celý rok</option>{MONTHS.map((m) => <option key={m} value={m}>{m}</option>)}</select>

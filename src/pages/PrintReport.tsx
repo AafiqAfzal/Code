@@ -7,6 +7,7 @@ import { useCategories, useClasses, useGroups, useMyGroups, useScale, useSetting
 import { PageHeader } from '../components/ui'
 import { NOTE_KINDS, fmtDate, fullName, todayISO, fmtNum } from '../lib/format'
 import { effectiveGrade, percentOf, proposedGrade, weightedAverage } from '../lib/grading'
+import { lessonForStudent } from '../lib/attendance'
 import { TERM_LABEL, currentTerm, termRange, type Term } from '../lib/terms'
 
 export function PrintReportPage() {
@@ -37,12 +38,14 @@ export function PrintReportPage() {
     if (!ids.length || !subjectId) return null
     const inRange = (d: string) => d >= dateFrom && d <= dateTo
     const assessments = (await db.assessments.where('subjectId').equals(subjectId).toArray()).filter((a) => ids.includes(a.studentId) && inRange(a.date))
-    const logs = (await db.lessonLogs.toArray()).filter((l) => inRange(l.date) && (groupId ? l.groupId === groupId : classId ? l.classId === classId : true))
+    // jen hodiny daného předmětu (bez suplování); u každého žáka pak jen hodiny jeho skupiny/třídy, i spojené
+    const logs = (await db.lessonLogs.where('subjectId').equals(subjectId).toArray()).filter((l) => inRange(l.date) && l.kind !== 'suplovani')
     const notes = (await db.studentNotes.toArray()).filter((n) => ids.includes(n.studentId) && inRange(n.date))
     const evals = (await db.termEvaluations.toArray()).filter((e) => ids.includes(e.studentId) && e.subjectId === subjectId && (activeTerm === 0 || e.term === activeTerm))
     return { assessments, logs, notes, evals }
   }, [ids.join(','), subjectId, dateFrom, dateTo, groupId, classId, activeTerm])
   const subject = subjects.find((s) => s.id === subjectId)
+  const groupsById = useMemo(() => new Map(groups.map((g) => [g.id, g])), [groups])
   const catName = (id: number) => categories.find((c) => c.id === id)?.name ?? ''
 
   return (
@@ -72,7 +75,8 @@ export function PrintReportPage() {
       {data && roster.map((s) => {
         const mine = data.assessments.filter((a) => a.studentId === s.id).sort((a, b) => a.date.localeCompare(b.date))
         const avg = weightedAverage(mine, scale)
-        const absences = data.logs.filter((l) => l.absentStudentIds.includes(s.id))
+        const myLessons = data.logs.filter((l) => lessonForStudent(l, s, groupsById))
+        const absences = myLessons.filter((l) => l.absentStudentIds.includes(s.id))
         const notes = data.notes.filter((n) => n.studentId === s.id).sort((a, b) => a.date.localeCompare(b.date))
         const cls = classes.find((c) => c.id === s.classId)
         return (
@@ -99,7 +103,7 @@ export function PrintReportPage() {
             {opts.absence && (
               <section className="mb-3">
                 <h3 className="font-semibold mb-1">Absence v předmětu</h3>
-                <p>{absences.length} z {data.logs.length} zapsaných hodin{absences.length > 0 && <span className="text-slate-500"> ({absences.map((l) => fmtDate(l.date, 'd.M.')).join(', ')})</span>}</p>
+                <p>{absences.length} z {myLessons.length} zapsaných hodin{absences.length > 0 && <span className="text-slate-500"> ({absences.map((l) => fmtDate(l.date, 'd.M.')).join(', ')})</span>}</p>
               </section>
             )}
             {opts.evaluation && data.evals.filter((e) => e.studentId === s.id && (e.text || e.proposedGrade)).map((e) => (

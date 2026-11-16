@@ -2,12 +2,22 @@
 
 ## Připravovaná verze
 
+- Nová stránka „Třídní schůzky“ (v menu Výuka, odkaz i u třídy): report pro předmět a třídu/skupinu – stav ke zvolenému dni (výchozí dnes) za pololetí, do kterého den spadá; přehled celé třídy (známky s body, průměr, návrh, absence, pochvaly/napomenutí, poznámka, „K projednání“) a kartičky pro rodiče k rozstřižení s poznámkou, kterou napíšete před tiskem (ukládá se, jedna na žáka); tiskne se na šířku
+- Report u třídy: odkaz z Tříd otevře předmět, který učíte celé třídě (např. zeměpis); u předmětu učeného ve skupinách jen vaši žáci; absence každého žáka jen z hodin jeho třídy/skupiny (i spojených)
+- Známka zadaná klávesou nebo tlačítkem přepíše body (dřív zůstalo např. „5 / 80 %“)
+- Nový školní rok: průvodce posune konec 1. pololetí o rok; uložené datum mimo školní rok se ignoruje (průměry by se jinak počítaly za špatné období); Nastavení ukládá konec pololetí jen při skutečné změně
+- Zálohy: za data se považuje cokoli kromě výchozího nastavení (i pracovní výkaz a poznámky) – záloha a bezpečnostní kopie se tedy udělají vždy; záloha je konzistentní snímek
+- Obnova ze zálohy: kontrola souboru (neúplná, poškozená nebo z novější verze se odmítne), před obnovou ze souboru dotaz s počtem žáků a datem zálohy, tabulky, které starší záloha nezná, zůstanou beze změny
+- Seznam záloh seřazený podle data a času; nabídka obnovy na prázdném přehledu vybere poslední uloženou neprázdnou zálohu
+- Mazání: předmět, který se používá, nejde smazat; smazání skupiny se zeptá a uklidí její hodiny v rozvrhu a zasedací pořádek; smazání žáka smaže i jeho poznámky z reportu
+- Nahrání rozvrhu nebo dozorů ze souboru: chybný soubor se odmítne a dosavadní rozvrh zůstane
+- Docházka: u třídy jen hodiny vybraného předmětu bez suplování, jen letošní školní rok; v nabídce i skupiny kolegů (spojené hodiny); filtr zápisů z hodin nabízí i skupiny kolegů
+- Podklady na schůzku: absence jen z hodin daného předmětu a žákovy skupiny/třídy (i spojených)
+- Karta žáka: roční průměr a absence jen za letošní školní rok
 - Desktopová aplikace se otevírá přes celou obrazovku; okno jde zúžit až na 480 px (dřív min. 900 px), takže se vejde na polovinu obrazovky notebooku vedle Školy online
 - Úzké okno (pod 1024 px): menu se schová pod tlačítko ☰ a obsah dostane celou šířku
 - Hodnocení: hlavička tabulky (datum, název, váha) zůstává při posouvání dolů vidět, jména žáků vlevo při posouvání do strany
 - Spojené skupiny (rozvrh, suplování, zápis z hodiny): nabízejí se i skupiny kolegyně (označené „(kolegyně)“), vždy jen stejného předmětu a ročníku
-- Nová stránka „Třídní schůzky“ (v menu Výuka, odkaz i u třídy): report pro předmět a třídu/skupinu za 1. čtvrtletí, 1. pololetí, 3. čtvrtletí nebo 2. pololetí – přehled celé třídy (známky s body, průměr, návrh, absence, pochvaly/napomenutí, poznámka, „K projednání“) a kartičky pro rodiče k rozstřižení s poznámkou, kterou napíšete před tiskem (ukládá se); tiskne se na šířku
-- Nastavení: konec 1. a 3. čtvrtletí (výchozí 15. 11. a 15. 4.)
 
 ## 3.2.1
 

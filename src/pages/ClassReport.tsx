@@ -2,12 +2,13 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Printer } from 'lucide-react'
-import { db, type Assessment, type ReportNote } from '../db/schema'
+import { db, type Assessment } from '../db/schema'
 import { useClasses, useGroups, useScale, useSettings, useStudents, useSubjects, useTeachingUnits } from '../components/hooks'
 import { PageHeader } from '../components/ui'
-import { byName, fmtDate, fmtNum, fullName } from '../lib/format'
+import { byName, fmtDate, fmtNum, fullName, todayISO } from '../lib/format'
 import { effectiveGrade, proposedGrade, weightedAverage } from '../lib/grading'
-import { REPORT_PERIODS, REPORT_PERIOD_LABEL, currentReportPeriod, periodRange, type ReportPeriod } from '../lib/terms'
+import { TERM_LABEL, termOf, termRange } from '../lib/terms'
+import { lessonForStudent } from '../lib/attendance'
 
 interface Column { key: string; date: string; title: string; weight: number; maxPoints?: number }
 const keyOf = (a: Assessment) => `${a.date}|${a.title}|${a.categoryId}`
@@ -27,10 +28,17 @@ export function ClassReportPage() {
   const group = groups.find((g) => g.id === groupId)
   const subjectId = Number(params.get('subjectId')) || group?.subjectId || settings?.defaultSubjectId || subjects[0]?.id
   const units = useTeachingUnits(subjectId)
-  const [period, setPeriod] = useState<ReportPeriod | null>(null)
-  const activePeriod: ReportPeriod = period ?? currentReportPeriod(settings)
-  const { from, to } = periodRange(activePeriod, settings)
+  // report se počítá za pololetí, do kterého spadá den sepsání: od začátku pololetí do tohoto dne
+  const [reportDate, setReportDate] = useState(todayISO())
+  const term = termOf(reportDate, settings)
+  const termR = termRange(term, settings)
+  const from = termR.from
+  const to = reportDate < termR.to ? reportDate : termR.to
+  const activePeriod = `h${term}`
+  /** klíč roku pro poznámky: rok začátku školního roku (nezávisí na textu „2026/2027“) */
+  const yearKey = settings?.yearStart?.slice(0, 4) ?? ''
   const schoolYear = settings?.schoolYear ?? ''
+  const periodLabel = `${TERM_LABEL[term]} – stav ke dni ${fmtDate(reportDate)}`
   const [show, setShow] = useState({ overview: true, cards: true })
 
   // bez výběru → první skupina/třída předmětu
@@ -42,7 +50,17 @@ export function ClassReportPage() {
     if (first) setParams({ subjectId: String(subjectId ?? ''), ...first }, { replace: true })
   }, [units.loaded, units.groups, units.classes, units.allGroups, units.allClasses, groupId, classId, subjectId, setParams])
 
-  const roster = useMemo(() => (group ? allStudents.filter((s) => group.studentIds.includes(s.id)) : classId ? allStudents.filter((s) => s.classId === classId) : []).sort(byName), [group, classId, allStudents])
+  const groupsById = useMemo(() => new Map(groups.map((g) => [g.id, g])), [groups])
+  const wholeClassTaught = useLiveQuery(async () => !!classId && !!subjectId && (await db.timetable.filter((t) => t.classId === classId && !t.groupId && t.subjectId === subjectId).count()) > 0, [classId, subjectId])
+  const roster = useMemo(() => {
+    if (group) return allStudents.filter((s) => group.studentIds.includes(s.id)).sort(byName)
+    if (!classId) return []
+    const inClass = allStudents.filter((s) => s.classId === classId)
+    // předmět se ve třídě učí ve skupinách (např. Aj) → jen žáci mých skupin, ne žáci kolegyně
+    const mine = groups.filter((g) => g.mine !== false && (!g.subjectId || g.subjectId === subjectId))
+    const inMyGroups = inClass.filter((s) => mine.some((g) => g.studentIds.includes(s.id)))
+    return (wholeClassTaught === false && inMyGroups.length ? inMyGroups : inClass).sort(byName)
+  }, [group, classId, allStudents, groups, subjectId, wholeClassTaught])
   const ids = roster.map((s) => s.id)
 
   const data = useLiveQuery(async () => {
@@ -50,12 +68,13 @@ export function ClassReportPage() {
     const inRange = (d: string) => d >= from && d <= to
     const assessments = (await db.assessments.where('subjectId').equals(subjectId).toArray()).filter((a) => ids.includes(a.studentId) && inRange(a.date))
     // odučené hodiny této skupiny/třídy v předmětu (i spojené hodiny, kdy byla skupina připojená)
-    const logs = (await db.lessonLogs.toArray()).filter((l) => inRange(l.date) && l.subjectId === subjectId && l.kind !== 'suplovani'
-      && (groupId ? l.groupId === groupId || !!l.extraGroupIds?.includes(groupId) : l.classId === classId))
+    // odučené hodiny předmětu, které se týkají aspoň jednoho žáka (hodina třídy, skupiny i spojené skupiny)
+    const logs = (await db.lessonLogs.where('subjectId').equals(subjectId).toArray()).filter((l) => inRange(l.date) && l.kind !== 'suplovani'
+      && (groupId ? l.groupId === groupId || !!l.extraGroupIds?.includes(groupId) : roster.some((st) => lessonForStudent(l, st, groupsById))))
     const notes = (await db.studentNotes.toArray()).filter((n) => ids.includes(n.studentId) && inRange(n.date))
-    const reportNotes = await db.reportNotes.where('[subjectId+period+schoolYear]').equals([subjectId, activePeriod, schoolYear]).toArray()
+    const reportNotes = await db.reportNotes.where('[subjectId+period+schoolYear]').equals([subjectId, activePeriod, yearKey]).toArray()
     return { assessments, logs, notes, reportNotes }
-  }, [ids.join(','), subjectId, from, to, groupId, classId, activePeriod, schoolYear])
+  }, [ids.join(','), subjectId, from, to, groupId, classId, activePeriod, yearKey, groupsById])
 
   const columns: Column[] = useMemo(() => {
     const map = new Map<string, Column>()
@@ -71,8 +90,10 @@ export function ClassReportPage() {
     const mine = (data?.assessments ?? []).filter((a) => a.studentId === s.id)
     const avg = weightedAverage(mine, scale)
     const prop = proposedGrade(avg)
-    const abs = (data?.logs ?? []).filter((l) => l.absentStudentIds.includes(s.id)).length
-    const pct = taught ? Math.round((abs / taught) * 100) : 0
+    // každý žák jen hodiny své skupiny/třídy
+    const myLessons = (data?.logs ?? []).filter((l) => groupId ? true : lessonForStudent(l, s, groupsById))
+    const abs = myLessons.filter((l) => l.absentStudentIds.includes(s.id)).length
+    const pct = myLessons.length ? Math.round((abs / myLessons.length) * 100) : 0
     const notes = (data?.notes ?? []).filter((n) => n.studentId === s.id)
     const plus = notes.filter((n) => n.kind === 'pochvala').length
     const minus = notes.filter((n) => n.kind === 'napomenuti').length
@@ -86,11 +107,15 @@ export function ClassReportPage() {
   const groupAvg = avgs.length ? Math.round((avgs.reduce((a, b) => a + b, 0) / avgs.length) * 100) / 100 : undefined
   const avgAbs = taught && rows.length ? Math.round((rows.reduce((a, r) => a + r.abs, 0) / rows.length / taught) * 1000) / 10 : 0
 
-  const saveNote = async (studentId: number, text: string, existing?: ReportNote) => {
-    if (!subjectId) return
+  /** Uložení poznámky: jedna poznámka na žáka × předmět × pololetí × rok (v transakci, bez duplicit) */
+  const saveNote = async (studentId: number, text: string) => {
+    if (!subjectId || !yearKey) return
     const t = text.trim()
-    if (existing) { if (t) await db.reportNotes.update(existing.id, { text: t, updatedAt: new Date().toISOString() }); else await db.reportNotes.delete(existing.id) }
-    else if (t) await db.reportNotes.add({ studentId, subjectId, period: activePeriod, schoolYear, text: t, updatedAt: new Date().toISOString() })
+    await db.transaction('rw', db.reportNotes, async () => {
+      const ex = await db.reportNotes.where('[studentId+subjectId+period+schoolYear]').equals([studentId, subjectId, activePeriod, yearKey]).first()
+      if (ex) { if (t) await db.reportNotes.update(ex.id, { text: t, updatedAt: new Date().toISOString() }); else await db.reportNotes.delete(ex.id) }
+      else if (t) await db.reportNotes.add({ studentId, subjectId, period: activePeriod, schoolYear: yearKey, text: t, updatedAt: new Date().toISOString() })
+    })
   }
 
   const cell = (a?: Assessment) => {
@@ -105,7 +130,7 @@ export function ClassReportPage() {
         <div className="text-[7.5pt] uppercase tracking-wide">{kind}{schoolYear ? ` · školní rok ${schoolYear}` : ''}</div>
         <h1 className="text-[14pt] font-bold leading-tight">{unitName} · {subject?.name}</h1>
       </div>
-      <div className="text-right text-[8pt] leading-snug">Období: <b>{REPORT_PERIOD_LABEL[activePeriod]}</b> ({fmtDate(from)} – {fmtDate(to)})<br />{[settings?.teacherName && `Vyučující: ${settings.teacherName}`, settings?.schoolName].filter(Boolean).join(' · ')}</div>
+      <div className="text-right text-[8pt] leading-snug"><b>{periodLabel}</b> ({fmtDate(from)} – {fmtDate(to)})<br />{[settings?.teacherName && `Vyučující: ${settings.teacherName}`, settings?.schoolName].filter(Boolean).join(' · ')}</div>
     </div>
   )
   const dist = [1, 2, 3, 4, 5].map((g) => `${g}: ${rows.filter((r) => r.prop === g).length}×`).join('  ')
@@ -159,7 +184,7 @@ export function ClassReportPage() {
       {rows.map((r) => (
         <div key={r.s.id} className="break-inside-avoid border border-dashed border-slate-400 px-[7mm] py-[5mm]">
           <div className="text-[10.5pt] font-bold">{fullName(r.s)}</div>
-          <div className="mb-1 text-[7.5pt] text-slate-600">{[subject?.name, unitName, `${REPORT_PERIOD_LABEL[activePeriod]} ${schoolYear}`, settings?.teacherName].filter(Boolean).join(' · ')}</div>
+          <div className="mb-1 text-[7.5pt] text-slate-600">{[subject?.name, unitName, `${TERM_LABEL[term]} ${schoolYear} (ke dni ${fmtDate(reportDate)})`, settings?.teacherName].filter(Boolean).join(' · ')}</div>
           <table className="w-full [&_td]:border-b [&_td]:border-slate-200 [&_td]:py-px">
             <tbody>
               {r.mine.slice().sort((a, b) => a.date.localeCompare(b.date)).map((a) => (
@@ -194,9 +219,9 @@ export function ClassReportPage() {
               {groupId && !units.groups.some((g) => g.id === groupId) && group && <option value={`g${groupId}`}>{group.name}</option>}
               {classId && !units.classes.some((c) => c.id === classId) && <option value={`c${classId}`}>{classes.find((c) => c.id === classId)?.name}</option>}
             </select></div>
-          <div><div className="label">Období</div>
-            <select className="input w-auto" value={activePeriod} onChange={(e) => setPeriod(e.target.value as ReportPeriod)}>{REPORT_PERIODS.map((p) => <option key={p} value={p}>{REPORT_PERIOD_LABEL[p]}</option>)}</select></div>
-          <div className="pb-2 text-xs text-slate-500">{fmtDate(from)} – {fmtDate(to)}</div>
+          <div><div className="label">Stav ke dni</div>
+            <input type="date" className="input w-auto" value={reportDate} onChange={(e) => setReportDate(e.target.value || todayISO())} /></div>
+          <div className="pb-2 text-xs text-slate-500">{TERM_LABEL[term]}: známky a absence od {fmtDate(from)} do {fmtDate(to)}</div>
           <div className="flex gap-3 pb-1 text-sm">
             <label className="flex items-center gap-1"><input type="checkbox" checked={show.overview} onChange={(e) => setShow({ ...show, overview: e.target.checked })} /> přehled třídy</label>
             <label className="flex items-center gap-1"><input type="checkbox" checked={show.cards} onChange={(e) => setShow({ ...show, cards: e.target.checked })} /> kartičky pro rodiče</label>
@@ -209,7 +234,7 @@ export function ClassReportPage() {
             <div className="card mb-4">
               <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
                 <h2 className="card-title">Poznámky pro rodiče na kartičky</h2>
-                <span className="text-xs text-slate-500">Ukládá se samo po opuštění pole · {REPORT_PERIOD_LABEL[activePeriod]} {schoolYear}</span>
+                <span className="text-xs text-slate-500">Ukládá se samo po opuštění pole · {TERM_LABEL[term]} {schoolYear}</span>
               </div>
               <ul className="divide-y divide-slate-100">
                 {rows.map((r) => (
@@ -218,10 +243,14 @@ export function ClassReportPage() {
                       <div className="font-medium">{fullName(r.s)}</div>
                       <div className="text-xs text-slate-500">průměr {r.avg != null ? fmtNum(r.avg) : '—'}{r.flags.length ? ` · ${r.flags.join(', ')}` : ''}</div>
                     </div>
-                    <textarea className="input min-w-64 flex-1" rows={2} placeholder="Poznámka na kartičku (např. zlepšení, co procvičit, dopsat test…)" defaultValue={r.note?.text ?? ''}
-                      onBlur={(e) => { if (e.target.value.trim() !== (r.note?.text ?? '')) saveNote(r.s.id, e.target.value, r.note) }} />
+                    <textarea id={`report-note-${r.s.id}`} className="input min-w-64 flex-1" rows={2} placeholder="Poznámka na kartičku (např. zlepšení, co procvičit, dopsat test…)" defaultValue={r.note?.text ?? ''}
+                      onBlur={(e) => { if (e.target.value.trim() !== (r.note?.text ?? '')) saveNote(r.s.id, e.target.value) }} />
                     {r.lastNote && !r.note && (
-                      <button className="text-xs text-blue-700 hover:underline" title={r.lastNote.text} onClick={() => saveNote(r.s.id, r.lastNote!.text)}>vložit poslední poznámku ({fmtDate(r.lastNote.date, 'd. M.')})</button>
+                      <button className="text-xs text-blue-700 hover:underline" title={r.lastNote.text} onMouseDown={(e) => e.preventDefault()} onClick={() => {
+                        // rozepsaný text v poli se neztratí – poslední poznámka se k němu připojí
+                        const typed = (document.getElementById(`report-note-${r.s.id}`) as HTMLTextAreaElement | null)?.value.trim() ?? ''
+                        saveNote(r.s.id, typed ? `${typed}\n${r.lastNote!.text}` : r.lastNote!.text)
+                      }}>vložit poslední poznámku ({fmtDate(r.lastNote.date, 'd. M.')})</button>
                     )}
                   </li>
                 ))}

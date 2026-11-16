@@ -6,13 +6,14 @@ import { loadDemoData, resetDefaultCategories } from '../db/seed'
 import { useCategories, useScale, useSettings, useSubjects } from '../components/hooks'
 import { ConfirmButton, Field, PageHeader, Toast, useToast } from '../components/ui'
 import { backupSummary, downloadBlob, exportBackup, wipeAll } from '../lib/backup'
-import { isDesktop, restoreBackup, runDailyAutoBackupForce, safetyBackup, saveBackupAs } from '../lib/desktop'
+import { confirmRestore, isDesktop, restoreBackup, runDailyAutoBackupForce, safetyBackup, saveBackupAs } from '../lib/desktop'
 import { DEFAULT_LUNCH_MINUTES, workdaySpan } from '../lib/workReport'
 import { PIN_RE, clearPin, setPin, verifyPin } from '../lib/pin'
 import { NewYearWizard } from '../components/NewYearWizard'
 import { SettingsTabs } from '../components/Layout'
 import { NATIONAL_SCHOOL_HOLIDAYS } from '../lib/holidays'
-import { q1End, q3End } from '../lib/terms'
+import { term1End } from '../lib/terms'
+import { deleteSubject } from '../lib/remove'
 import { WEEKDAYS, fmtDate, todayISO } from '../lib/format'
 
 export function SettingsPage() {
@@ -83,9 +84,7 @@ export function SettingsPage() {
           <Field label="Školní rok"><input className="input" defaultValue={settings.schoolYear} onBlur={(e) => upd({ schoolYear: e.target.value })} /></Field>
           <Field label="Začátek roku"><input type="date" className="input" defaultValue={settings.yearStart} onBlur={(e) => upd({ yearStart: e.target.value })} /></Field>
           <Field label="Konec roku"><input type="date" className="input" defaultValue={settings.yearEnd} onBlur={(e) => upd({ yearEnd: e.target.value })} /></Field>
-          <Field label="Konec 1. čtvrtletí"><input type="date" className="input" defaultValue={q1End(settings)} onBlur={(e) => upd({ q1End: e.target.value })} /></Field>
-          <Field label="Konec 1. pololetí"><input type="date" className="input" defaultValue={settings.term1End ?? `${settings.yearEnd.slice(0, 4)}-01-31`} onBlur={(e) => upd({ term1End: e.target.value })} /></Field>
-          <Field label="Konec 3. čtvrtletí"><input type="date" className="input" defaultValue={q3End(settings)} onBlur={(e) => upd({ q3End: e.target.value })} /></Field>
+          <Field label="Konec 1. pololetí"><input type="date" className="input" defaultValue={term1End(settings)} onBlur={(e) => { if (e.target.value && e.target.value !== term1End(settings)) upd({ term1End: e.target.value }) }} /></Field>
           <Field label="Odkaz na Školu online"><input className="input" defaultValue={settings.skolaOnlineUrl} onBlur={(e) => upd({ skolaOnlineUrl: e.target.value })} /></Field>
           <Field label="Výchozí předmět" className="md:col-span-3">
             <select className="input w-auto" value={settings.defaultSubjectId ?? ''} onChange={(e) => upd({ defaultSubjectId: Number(e.target.value) || undefined })}>{subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
@@ -101,7 +100,7 @@ export function SettingsPage() {
               <td><input className="input" defaultValue={s.name} onBlur={(e) => updSubj(s, { name: e.target.value })} /></td>
               <td><input className="input w-20" defaultValue={s.abbreviation} onBlur={(e) => updSubj(s, { abbreviation: e.target.value })} /></td>
               <td><input type="color" defaultValue={s.color} onChange={(e) => updSubj(s, { color: e.target.value })} /></td>
-              <td className="text-right"><ConfirmButton onConfirm={() => db.subjects.delete(s.id)}>Smazat</ConfirmButton></td>
+              <td className="text-right"><ConfirmButton onConfirm={async () => { const err = await deleteSubject(s.id); if (err) alert(err) }}>Smazat</ConfirmButton></td>
             </tr>
           ))}</tbody></table>
       </section>
@@ -259,7 +258,7 @@ export function SettingsPage() {
         )}
         <div className="flex flex-wrap gap-2 items-center">
           <button className="btn-primary" onClick={async () => { if (isDesktop()) { const f = await saveBackupAs(); if (f) show(`Uloženo: ${f}`) } else { downloadBlob(await exportBackup(), `pedagogicky-denik-${todayISO()}.json`); show('Záloha stažena.') } }}>{isDesktop() ? 'Uložit zálohu jako…' : 'Stáhnout zálohu (JSON)'}</button>
-          <label className="btn-secondary">Obnovit ze zálohy<input type="file" accept=".json" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (!confirm(`Obnovení nahradí všechna současná data. ${isDesktop() ? 'Současný stav se předtím uloží do složky záloh' : 'Současný stav se předtím stáhne jako soubor'} „…-pred-obnovou.json“. Pokračovat?`)) { e.target.value = ''; return } try { await restoreBackup(f); show('Data obnovena.'); setTimeout(() => location.reload(), 1200) } catch (err) { alert((err as Error).message) } e.target.value = '' }} /></label>
+          <label className="btn-secondary">Obnovit ze zálohy<input type="file" accept=".json" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (!(await confirmRestore(f))) { e.target.value = ''; return } try { await restoreBackup(f); show('Data obnovena.'); setTimeout(() => location.reload(), 1200) } catch (err) { alert((err as Error).message) } e.target.value = '' }} /></label>
           <button className="btn-secondary" onClick={async () => { if ((counts?.students ?? 0) > 0 && !confirm('V aplikaci už jsou žáci. Ukázková data (smyšlení žáci, třídy 6.A a 6.B, známky) se k nim přidají. Pokračovat?')) return; await loadDemoData(); show('Ukázková data přidána.') }}>Přidat ukázková data</button>
           <ConfirmButton className="btn-danger" confirmLabel="Opravdu vše smazat?" onConfirm={async () => { await safetyBackup('pred-smazanim'); await wipeAll(); location.reload() }}>Smazat všechna data</ConfirmButton>
         </div>

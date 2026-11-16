@@ -133,7 +133,7 @@ export function GradesPage() {
     const a = assessments.find((x) => x.studentId === studentId && `${x.date}|${x.title}|${x.categoryId}` === column.key)
     if (!subjectId) return
     let patch: Partial<Assessment> | null = null
-    if (/^[1-5]$/.test(key)) patch = { grade: Number(key), absent: false }
+    if (/^[1-5]$/.test(key)) patch = { grade: Number(key), points: undefined, absent: false } // známka přepíše body (jinak by bylo „5 / 80 %“)
     else if (key.toLowerCase() === 'n') patch = { absent: true, grade: undefined }
     else if (key === 'Delete' || key === 'Backspace') patch = { grade: undefined, points: undefined, absent: false }
     if (!patch) return
@@ -260,7 +260,7 @@ export function GradesPage() {
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-3">
               <Field label="Známka">
-                <div className="flex gap-1">{[1, 2, 3, 4, 5].map((g) => <button key={g} onClick={() => setCellDraft({ ...cellDraft, grade: g, absent: false })} className={`h-9 flex-1 rounded border font-bold ${cellDraft.grade === g ? GRADE_COLORS[g] + ' ring-2 ring-blue-500' : 'bg-white border-slate-200'}`}>{g}</button>)}</div>
+                <div className="flex gap-1">{[1, 2, 3, 4, 5].map((g) => <button key={g} onClick={() => setCellDraft({ ...cellDraft, grade: g, points: undefined, absent: false })} className={`h-9 flex-1 rounded border font-bold ${cellDraft.grade === g ? GRADE_COLORS[g] + ' ring-2 ring-blue-500' : 'bg-white border-slate-200'}`}>{g}</button>)}</div>
               </Field>
               <Field label="Body"><input type="number" step="0.5" className="input" value={cellDraft.points ?? ''} onChange={(e) => setCellDraft({ ...cellDraft, points: e.target.value === '' ? undefined : Number(e.target.value), grade: undefined })} /></Field>
               <Field label="Max. bodů"><input type="number" className="input" value={cellDraft.maxPoints ?? ''} onChange={(e) => setCellDraft({ ...cellDraft, maxPoints: Number(e.target.value) || undefined })} /></Field>

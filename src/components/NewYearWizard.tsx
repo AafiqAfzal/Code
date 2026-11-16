@@ -76,7 +76,9 @@ export function NewYearWizard({ open, onClose }: { open: boolean; onClose: () =>
       if (y1) await db.timetableChanges.where('date').below(`${y1 + 1}-09-01`).delete()
       await db.schoolHolidays.where('to').below(`${y1 + 1}-09-01`).delete()
       if (opts.clearTimetable) { await db.timetable.clear(); summary.push('Rozvrh vymazán') }
-      if (nextYear && y1) await db.settings.update(1, { schoolYear: nextYear, yearStart: `${y1 + 1}-09-01`, yearEnd: `${y2 + 1}-06-30` })
+      // konec 1. pololetí se posune o rok (jinak by zůstal loňský a průměry by se počítaly špatně)
+      const shift = (d?: string) => d && /^\d{4}-/.test(d) ? `${Number(d.slice(0, 4)) + 1}${d.slice(4)}` : undefined
+      if (nextYear && y1) await db.settings.update(1, { schoolYear: nextYear, yearStart: `${y1 + 1}-09-01`, yearEnd: `${y2 + 1}-06-30`, term1End: shift(settings?.term1End) })
     })
     setDone(summary.join('\n'))
     } catch (e) {

@@ -181,7 +181,10 @@ async function ensureSubject(sub: { abbr: string; name: string; color?: string }
  */
 export async function importTimetableFile(file: TimetableFile): Promise<number> {
   if (file.app !== 'pedagogicky-denik' || file.type !== 'timetable') throw new Error('Soubor není rozvrh pro Pedagogický deník.')
+  // nejdřív zkontrolovat celý soubor – chyba uprostřed nesmí nechat rozvrh napůl smazaný
+  if (!Array.isArray(file.slots) || file.slots.some((sl) => !sl || typeof sl.weekday !== 'number' || typeof sl.lessonNumber !== 'number' || !sl.subject || !sl.className)) throw new Error('Soubor s rozvrhem je neúplný nebo poškozený – rozvrh zůstal beze změny.')
   await ensureDefaults()
+  return db.transaction('rw', [db.subjects, db.classes, db.groups, db.timetable], async () => {
   for (const sub of file.subjects ?? []) await ensureSubject(sub)
   const classes = await db.classes.toArray()
   const groups = await db.groups.toArray()
@@ -209,15 +212,19 @@ export async function importTimetableFile(file: TimetableFile): Promise<number> 
     n++
   }
   return n
+  })
 }
 
 /** Nahraje dozory ze souboru; dosavadní dozory nahradí, hodiny a kroužky ponechá. Vrací počet dozorů. */
 export async function importDutiesFile(file: DutiesFile): Promise<number> {
   if (file.app !== 'pedagogicky-denik' || file.type !== 'duties') throw new Error('Soubor není seznam dozorů pro Pedagogický deník.')
-  await db.timetable.filter((s) => s.kind === 'dozor').delete()
-  for (const d of file.duties) {
-    await db.timetable.add({ weekday: d.weekday, lessonNumber: d.beforeLesson, kind: 'dozor', room: d.place, title: d.title, timeFrom: d.timeFrom, timeTo: d.timeTo, duringLesson: d.duringLesson })
-  }
+  if (!Array.isArray(file.duties) || file.duties.some((d) => !d || typeof d.weekday !== 'number' || typeof d.beforeLesson !== 'number')) throw new Error('Soubor s dozory je neúplný nebo poškozený – dozory zůstaly beze změny.')
+  await db.transaction('rw', db.timetable, async () => {
+    await db.timetable.filter((s) => s.kind === 'dozor').delete()
+    for (const d of file.duties) {
+      await db.timetable.add({ weekday: d.weekday, lessonNumber: d.beforeLesson, kind: 'dozor', room: d.place, title: d.title, timeFrom: d.timeFrom, timeTo: d.timeTo, duringLesson: d.duringLesson })
+    }
+  })
   return file.duties.length
 }
 

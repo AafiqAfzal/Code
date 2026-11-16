@@ -50,11 +50,16 @@ export function Dashboard() {
     if (!isEmpty || !window.denik?.listBackups || !window.denik.readBackup) return
     let cancelled = false
     ;(async () => {
+      // v nejnovějším dni se zálohou vybrat tu, která byla uložena nejpozději (podle času uvnitř souboru)
+      let best: { name: string; text: string; students: number; at: string; day: string } | null = null
       for (const name of await window.denik!.listBackups!()) {
+        const day = name.match(/\d{4}-\d{2}-\d{2}/)?.[0] ?? ''
+        if (best && day !== best.day) break
         const text = await window.denik!.readBackup!(name).catch(() => '')
         const sum = backupSummary(text)
-        if (sum.records > 0) { if (!cancelled) setFound({ name, text, students: sum.students }); return }
+        if (sum.records > 0 && (!best || (sum.exportedAt ?? '') > best.at)) best = { name, text, students: sum.students, at: sum.exportedAt ?? '', day }
       }
+      if (best && !cancelled) setFound({ name: best.name, text: best.text, students: best.students })
     })().catch(() => {})
     return () => { cancelled = true }
   }, [isEmpty])

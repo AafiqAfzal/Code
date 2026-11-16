@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { db, type LessonLog } from '../db/schema'
-import { groupLabel, mergeCandidates, rosterOf, useClasses, useGroups, useMyGroups, useSettings, useStudents, useSubjects, useTeachingUnits } from '../components/hooks'
+import { groupLabel, mergeCandidates, rosterOf, useClasses, useGroups, useSettings, useStudents, useSubjects, useTeachingUnits } from '../components/hooks'
 import { Badge, ConfirmButton, Field, Modal, PageHeader } from '../components/ui'
 import { fmtDate, fullName, todayISO } from '../lib/format'
 
@@ -14,7 +14,6 @@ export function LessonLogsPage() {
   const settings = useSettings()
   const subjects = useSubjects()
   const groups = useGroups()
-  const myGroups = useMyGroups()
   const classes = useClasses()
   const students = useStudents()
   // filtr seznamu: předmět + třída/skupina ('g12' / 'c3'); pamatuje se v tomto prohlížeči
@@ -70,7 +69,8 @@ export function LessonLogsPage() {
     const g = groups.find((x) => x.id === gid)
     return new Set(g ? students.filter((st) => g.studentIds.includes(st.id)).map((st) => st.classId) : [])
   }
-  const filterGroups = myGroups.filter((g) => !filter.subjectId || !g.subjectId || g.subjectId === filter.subjectId)
+  // i skupiny kolegů (spojené hodiny, kdy jsem učila i jejich žáky)
+  const filterGroups = groups.filter((g) => !filter.subjectId || !g.subjectId || g.subjectId === filter.subjectId)
   // zapamatovaná skupina/třída mezitím mohla zaniknout → filtr nepoužít
   const unitExists = filter.unit.startsWith('g') ? groups.some((g) => g.id === Number(filter.unit.slice(1))) : classes.some((c) => c.id === Number(filter.unit.slice(1)))
   const matchesUnit = (l: LessonLog) => {
@@ -134,7 +134,7 @@ export function LessonLogsPage() {
           <select className="input w-auto" value={filter.unit} onChange={(e) => setFilter({ ...filter, unit: e.target.value })}>
             <option value="">Všechny třídy a skupiny</option>
             {classes.length > 0 && <optgroup label="Třídy">{classes.map((c) => <option key={c.id} value={`c${c.id}`}>{c.name}</option>)}</optgroup>}
-            {filterGroups.length > 0 && <optgroup label="Skupiny">{filterGroups.map((g) => <option key={g.id} value={`g${g.id}`}>{g.name}</option>)}</optgroup>}
+            {filterGroups.length > 0 && <optgroup label="Skupiny">{filterGroups.map((g) => <option key={g.id} value={`g${g.id}`}>{groupLabel(g)}</option>)}</optgroup>}
           </select>
           <button className="btn-primary" onClick={() => setDraft(newDraft())}><Plus size={16} /> Nový zápis</button>
         </>

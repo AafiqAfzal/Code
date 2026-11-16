@@ -10,9 +10,6 @@ export interface Settings {
   yearEnd: string
   /** Poslední den 1. pololetí (výchozí 31. 1.). */
   term1End?: string
-  /** Konec 1. a 3. čtvrtletí (klasifikační porady) */
-  q1End?: string
-  q3End?: string
   skolaOnlineUrl: string
   /** Předmět, který je vybrán jako výchozí (např. Anglický jazyk). */
   defaultSubjectId?: number
@@ -182,8 +179,9 @@ export interface ReportNote {
   id: number
   studentId: number
   subjectId: number
-  /** q1 = 1. čtvrtletí, h1 = 1. pololetí, q3 = 3. čtvrtletí, h2 = 2. pololetí */
+  /** pololetí: 'h1' / 'h2' */
   period: string
+  /** rok začátku školního roku, např. '2026' (nezávislé na textu „2026/2027“) */
   schoolYear: string
   text: string
   updatedAt: string
@@ -383,7 +381,7 @@ export class DiaryDB extends Dexie {
       workMonths: '++id, &month',
     })
     this.version(6).stores({
-      reportNotes: '++id, studentId, [subjectId+period+schoolYear]',
+      reportNotes: '++id, studentId, &[studentId+subjectId+period+schoolYear], [subjectId+period+schoolYear]',
     })
   }
 }
