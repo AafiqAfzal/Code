@@ -16,6 +16,8 @@ interface DenikDesktop {
   /** Seznam záloh ve složce Dokumenty (nejnovější první) – jen Tauri */
   listBackups?: () => Promise<string[]>
   readBackup?: (name: string) => Promise<string>
+  /** Výběr souboru zálohy přes okno systému (jen Tauri) */
+  pickBackupFile?: () => Promise<{ name: string; text: string } | null>
   openExternal?: (url: string) => Promise<void>
 }
 interface UpdateState {

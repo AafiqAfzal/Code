@@ -1,5 +1,9 @@
 # Změny
 
+## Připravovaná verze
+
+- Obnova ze zálohy v desktopové verzi: soubor se vybírá oknem Windows, které načte i zálohu z flashky nebo z OneDrivu (dřív se takový soubor někdy nepřečetl a nestalo se nic); každá chyba při obnově se teď ukáže s radou
+
 ## 3.3.1
 
 - Report na schůzky: „K projednání“ už neuvádí jednotlivé chybějící známky (N); upozorní jen na žáka, který nemá v pololetí ani jedno hodnocení

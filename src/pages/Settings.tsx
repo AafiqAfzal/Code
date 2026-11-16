@@ -52,6 +52,16 @@ export function SettingsPage() {
   const [docBackups, setDocBackups] = useState<string[]>([])
   const [docBackup, setDocBackup] = useState('')
   useEffect(() => { window.denik?.listBackups?.().then((l) => { setDocBackups(l); setDocBackup(l[0] ?? '') }).catch(() => {}) }, [])
+  /** Obnova z vybraného souboru – každá chyba (i nečitelný soubor) se ukáže, nic se neztratí potichu */
+  const restoreFromFile = async (f: File) => {
+    try {
+      if (!(await confirmRestore(f))) return
+      await restoreBackup(f)
+      show('Data obnovena.'); setTimeout(() => location.reload(), 1200)
+    } catch (err) {
+      alert(`Obnova se nepovedla: ${(err as Error)?.message ?? err}${isDesktop() ? '\n\nPokud je soubor na flashce nebo v OneDrivu, zkopírujte ho do složky Dokumenty → Pedagogický deník → zalohy a obnovte ho ze seznamu výše.' : ''}`)
+    }
+  }
   const restoreFromDocuments = async () => {
     if (!window.denik?.readBackup || !docBackup) return
     try {
@@ -258,7 +268,12 @@ export function SettingsPage() {
         )}
         <div className="flex flex-wrap gap-2 items-center">
           <button className="btn-primary" onClick={async () => { if (isDesktop()) { const f = await saveBackupAs(); if (f) show(`Uloženo: ${f}`) } else { downloadBlob(await exportBackup(), `pedagogicky-denik-${todayISO()}.json`); show('Záloha stažena.') } }}>{isDesktop() ? 'Uložit zálohu jako…' : 'Stáhnout zálohu (JSON)'}</button>
-          <label className="btn-secondary">Obnovit ze zálohy<input type="file" accept=".json" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (!(await confirmRestore(f))) { e.target.value = ''; return } try { await restoreBackup(f); show('Data obnovena.'); setTimeout(() => location.reload(), 1200) } catch (err) { alert((err as Error).message) } e.target.value = '' }} /></label>
+          {window.denik?.pickBackupFile
+            ? <button className="btn-secondary" onClick={async () => {
+                try { const picked = await window.denik!.pickBackupFile!(); if (picked) await restoreFromFile(new File([picked.text], picked.name, { type: 'application/json' })) }
+                catch (err) { alert(`Zálohu se nepodařilo načíst: ${(err as Error)?.message ?? err}\n\nZkuste soubor zkopírovat do složky Dokumenty → Pedagogický deník → zalohy a obnovit ho ze seznamu výše.`) }
+              }}>Obnovit ze zálohy</button>
+            : <label className="btn-secondary">Obnovit ze zálohy<input type="file" accept=".json" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) await restoreFromFile(f) }} /></label>}
           <button className="btn-secondary" onClick={async () => { if ((counts?.students ?? 0) > 0 && !confirm('V aplikaci už jsou žáci. Ukázková data (smyšlení žáci, třídy 6.A a 6.B, známky) se k nim přidají. Pokračovat?')) return; await loadDemoData(); show('Ukázková data přidána.') }}>Přidat ukázková data</button>
           <ConfirmButton className="btn-danger" confirmLabel="Opravdu vše smazat?" onConfirm={async () => { await safetyBackup('pred-smazanim'); await wipeAll(); location.reload() }}>Smazat všechna data</ConfirmButton>
         </div>

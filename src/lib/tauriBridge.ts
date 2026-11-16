@@ -5,7 +5,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
 import { BaseDirectory, exists, mkdir, readDir, readTextFile, remove, rename, writeTextFile } from '@tauri-apps/plugin-fs'
-import { ask, save } from '@tauri-apps/plugin-dialog'
+import { ask, open, save } from '@tauri-apps/plugin-dialog'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { check, type Update } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
@@ -120,6 +120,13 @@ export function installTauriBridge() {
       return (await readDir(BACKUP_DIR, { baseDir: BaseDirectory.Document })).map((f) => f.name).filter((n): n is string => !!n && n.endsWith('.json')).sort((a, b) => key(b).localeCompare(key(a)) || b.localeCompare(a))
     },
     readBackup: (name) => readTextFile(`${BACKUP_DIR}/${name}`, { baseDir: BaseDirectory.Document }),
+    // výběr zálohy odkudkoli (flashka, OneDrive) přes okno Windows – systém soubor sám načte i z cloudu
+    pickBackupFile: async () => {
+      const path = await open({ title: 'Vyberte zálohu Pedagogického deníku', multiple: false, directory: false, defaultPath: await join(await documentDir(), BACKUP_DIR), filters: [{ name: 'Záloha (JSON)', extensions: ['json'] }] })
+      if (!path || Array.isArray(path)) return null
+      const text = await readTextFile(path)
+      return { name: path.split(/[\\/]/).pop() ?? 'zaloha.json', text }
+    },
     notify: async (title, body) => {
       let ok = await isPermissionGranted()
       if (!ok) ok = (await requestPermission()) === 'granted'
