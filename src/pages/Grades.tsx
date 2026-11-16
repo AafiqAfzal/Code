@@ -173,11 +173,11 @@ export function GradesPage() {
       {roster.length === 0 ? (
         <div className="card card-body text-sm text-slate-500">Vyberte skupinu nebo třídu s žáky. Skupiny vytvoříte v sekci <Link className="underline text-blue-700" to="/tridy">Třídy a skupiny</Link>.</div>
       ) : (
-        <div className="card overflow-x-auto">
+        <div className="card overflow-auto max-h-[calc(100vh-12rem)] print:max-h-none print:overflow-visible">
           <table className="table !w-auto whitespace-nowrap">
-            <thead>
+            <thead className="[&_th]:sticky [&_th]:top-0 [&_th]:z-20 [&_th]:bg-slate-50">
               <tr>
-                <th className="sticky left-0 bg-slate-50 z-10">Žák</th>
+                <th className="left-0 !z-30">Žák</th>
                 {columns.map((c) => {
                   const cat = catOf(c.categoryId)
                   return (
