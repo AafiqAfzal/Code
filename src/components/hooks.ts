@@ -58,3 +58,17 @@ export function rosterOf(students: Student[], groups: Group[], sel: { groupId?: 
   for (const eid of sel.extraGroupIds ?? []) groups.find((x) => x.id === eid)?.studentIds.forEach((id) => ids.add(id))
   return students.filter((s) => ids.has(s.id) || (!g && sel.classId != null && s.classId === sel.classId)).sort(byName)
 }
+
+/**
+ * Skupiny, které lze spojit s hodinou skupiny `groupId` (např. když kolegyně chybí a učím obě skupiny):
+ * stejný předmět a stejný ročník, včetně skupin kolegů (+ už dříve vybrané).
+ */
+export function mergeCandidates(groups: Group[], sel: { groupId?: number; subjectId?: number; selected?: number[] }): Group[] {
+  const base = groups.find((g) => g.id === sel.groupId)
+  return groups
+    .filter((g) => g.id !== sel.groupId && g.gradeLevel !== 0 && (!sel.subjectId || !g.subjectId || g.subjectId === sel.subjectId))
+    .filter((g) => !base || g.gradeLevel === base.gradeLevel || sel.selected?.includes(g.id))
+    .sort((a, b) => a.name.localeCompare(b.name, 'cs'))
+}
+/** Název skupiny s poznámkou, že je kolegyně/kolegy */
+export const groupLabel = (g: Group) => g.mine === false ? `${g.name} (${g.teacher || 'kolegyně'})` : g.name

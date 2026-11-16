@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { db, type LessonLog } from '../db/schema'
-import { rosterOf, useClasses, useGroups, useMyGroups, useSettings, useStudents, useSubjects, useTeachingUnits } from '../components/hooks'
+import { groupLabel, mergeCandidates, rosterOf, useClasses, useGroups, useMyGroups, useSettings, useStudents, useSubjects, useTeachingUnits } from '../components/hooks'
 import { Badge, ConfirmButton, Field, Modal, PageHeader } from '../components/ui'
 import { fmtDate, fullName, todayISO } from '../lib/format'
 
@@ -64,7 +64,7 @@ export function LessonLogsPage() {
     const extra = (l.extraGroupIds ?? []).map((id) => groups.find((g) => g.id === id)?.name).filter(Boolean)
     return extra.length ? `${base} + ${extra.join(' + ')}` : base
   }
-  const mergeable = (d: Draft) => myGroups.filter((g) => g.id !== d.groupId && (!g.subjectId || g.subjectId === d.subjectId))
+  const mergeable = (d: Draft) => mergeCandidates(groups, { groupId: d.groupId, subjectId: d.subjectId, selected: d.extraGroupIds })
   // ke které třídě patří skupina (podle tříd jejích žáků) – aby filtr třídy ukázal i zápisy jejích skupin
   const groupClassIds = (gid?: number) => {
     const g = groups.find((x) => x.id === gid)
@@ -179,10 +179,11 @@ export function LessonLogsPage() {
                   </select>
                 </Field>
               </div>
-              {draft.groupId && mergeable(draft).length > 0 && (
+              {draft.groupId && (
                 <Field label="Spojené skupiny (žáci navíc v docházce)">
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                    {mergeable(draft).map((g) => <label key={g.id} className="flex items-center gap-1"><input type="checkbox" checked={(draft.extraGroupIds ?? []).includes(g.id)} onChange={(e) => { const cur = draft.extraGroupIds ?? []; const ids = e.target.checked ? [...cur, g.id] : cur.filter((x) => x !== g.id); setDraft({ ...draft, extraGroupIds: ids.length ? ids : undefined }) }} /> {g.name}</label>)}
+                    {mergeable(draft).map((g) => <label key={g.id} className="flex items-center gap-1"><input type="checkbox" checked={(draft.extraGroupIds ?? []).includes(g.id)} onChange={(e) => { const cur = draft.extraGroupIds ?? []; const ids = e.target.checked ? [...cur, g.id] : cur.filter((x) => x !== g.id); setDraft({ ...draft, extraGroupIds: ids.length ? ids : undefined }) }} /> {groupLabel(g)}</label>)}
+                    {mergeable(draft).length === 0 && <span className="text-xs text-slate-400">Žádná jiná skupina tohoto předmětu v ročníku.</span>}
                   </div>
                 </Field>
               )}

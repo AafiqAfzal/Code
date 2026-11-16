@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { addDays, addWeeks, format, startOfWeek } from 'date-fns'
 import { Check, ChevronLeft, ChevronRight, Eye, FileJson, Sparkles, X } from 'lucide-react'
 import { db, type ChangeKind, type TimetableChange, type TimetableSlot } from '../db/schema'
-import { useClasses, useGroups, useMyGroups, useSettings, useSubjects } from '../components/hooks'
+import { groupLabel, mergeCandidates, useClasses, useGroups, useMyGroups, useSettings, useSubjects } from '../components/hooks'
 import { ConfirmButton, Field, Modal, PageHeader } from '../components/ui'
 import { LESSON_NUMBERS, WEEKDAYS, breakRange, fmtDate, lessonRange } from '../lib/format'
 import { importDutiesFile, importTimetableFile, readJsonFile, type DutiesFile, type TimetableFile } from '../db/seed'
@@ -44,16 +44,17 @@ export function TimetablePage() {
     return extra.length ? `${base} + ${extra.join(' + ')}` : base
   }
   /** Skupiny, které lze spojit s vybranou (stejný předmět, jiná skupina; u jiného předmětu všechny moje) */
-  const mergeableGroups = (sel: { groupId?: number; subjectId?: number }) => myGroups.filter((g) => g.id !== sel.groupId && (!sel.subjectId || !g.subjectId || g.subjectId === sel.subjectId))
   // obyčejná funkce, ne komponenta – komponenta definovaná v renderu se při každé změně znovu vytváří (ztrácí kurzor)
   const mergeField = ({ value, subjectId, groupId, onChange }: { value?: number[]; subjectId?: number; groupId?: number; onChange: (ids: number[]) => void }) => {
-    const opts = mergeableGroups({ groupId, subjectId })
-    if (!groupId || opts.length === 0) return null
     const cur = value ?? []
+    const opts = mergeCandidates(groups, { groupId, subjectId, selected: cur })
+    if (!groupId) return null
     return (
       <Field label="Spojené skupiny (žáci navíc – např. když kolegyně chybí)">
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-          {opts.map((g) => <label key={g.id} className="flex items-center gap-1"><input type="checkbox" checked={cur.includes(g.id)} onChange={(e) => onChange(e.target.checked ? [...cur, g.id] : cur.filter((x) => x !== g.id))} /> {g.name}</label>)}
+          {opts.map((g) => <label key={g.id} className="flex items-center gap-1"><input type="checkbox" checked={cur.includes(g.id)} onChange={(e) => onChange(e.target.checked ? [...cur, g.id] : cur.filter((x) => x !== g.id))} /> {groupLabel(g)}</label>)}
+          {opts.length === 0 && <span className="text-xs text-slate-400">Žádná jiná skupina tohoto předmětu v ročníku.</span>}
+
         </div>
       </Field>
     )
