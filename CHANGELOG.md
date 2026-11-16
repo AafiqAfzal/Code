@@ -1,6 +1,6 @@
 # Změny
 
-## Připravovaná verze
+## 3.3.1
 
 - Report na schůzky: „K projednání“ už neuvádí jednotlivé chybějící známky (N); upozorní jen na žáka, který nemá v pololetí ani jedno hodnocení
 
