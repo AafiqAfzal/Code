@@ -10,6 +10,9 @@ export interface Settings {
   yearEnd: string
   /** Poslední den 1. pololetí (výchozí 31. 1.). */
   term1End?: string
+  /** Konec 1. a 3. čtvrtletí (klasifikační porady) */
+  q1End?: string
+  q3End?: string
   skolaOnlineUrl: string
   /** Předmět, který je vybrán jako výchozí (např. Anglický jazyk). */
   defaultSubjectId?: number
@@ -174,6 +177,18 @@ export interface ThematicPlan {
   createdAt: string
 }
 
+/** Poznámka pro rodiče na kartičce reportu (žák × předmět × období × školní rok) */
+export interface ReportNote {
+  id: number
+  studentId: number
+  subjectId: number
+  /** q1 = 1. čtvrtletí, h1 = 1. pololetí, q3 = 3. čtvrtletí, h2 = 2. pololetí */
+  period: string
+  schoolYear: string
+  text: string
+  updatedAt: string
+}
+
 export interface PlanItem {
   id: number
   planId: number
@@ -333,6 +348,7 @@ export class DiaryDB extends Dexie {
   schoolHolidays!: EntityTable<SchoolHoliday, 'id'>
   documents!: EntityTable<StoredDocument, 'id'>
   workMonths!: EntityTable<WorkMonth, 'id'>
+  reportNotes!: EntityTable<ReportNote, 'id'>
 
   constructor() {
     super('pedagogicky-denik')
@@ -366,6 +382,9 @@ export class DiaryDB extends Dexie {
       documents: '++id, kind',
       workMonths: '++id, &month',
     })
+    this.version(6).stores({
+      reportNotes: '++id, studentId, [subjectId+period+schoolYear]',
+    })
   }
 }
 
@@ -374,6 +393,6 @@ export const db = new DiaryDB()
 export const ALL_TABLES = [
   'settings', 'subjects', 'classes', 'groups', 'students', 'studentNotes',
   'gradeCategories', 'gradingScales', 'assessments', 'termEvaluations',
-  'events', 'plans', 'planItems', 'lessonLogs', 'timetable', 'seatingPlans', 'timetableChanges', 'schoolHolidays', 'documents', 'workMonths',
+  'events', 'plans', 'planItems', 'lessonLogs', 'timetable', 'seatingPlans', 'timetableChanges', 'schoolHolidays', 'documents', 'workMonths', 'reportNotes',
 ] as const
 export type TableName = (typeof ALL_TABLES)[number]

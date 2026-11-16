@@ -12,6 +12,7 @@ import { PIN_RE, clearPin, setPin, verifyPin } from '../lib/pin'
 import { NewYearWizard } from '../components/NewYearWizard'
 import { SettingsTabs } from '../components/Layout'
 import { NATIONAL_SCHOOL_HOLIDAYS } from '../lib/holidays'
+import { q1End, q3End } from '../lib/terms'
 import { WEEKDAYS, fmtDate, todayISO } from '../lib/format'
 
 export function SettingsPage() {
@@ -82,7 +83,9 @@ export function SettingsPage() {
           <Field label="Školní rok"><input className="input" defaultValue={settings.schoolYear} onBlur={(e) => upd({ schoolYear: e.target.value })} /></Field>
           <Field label="Začátek roku"><input type="date" className="input" defaultValue={settings.yearStart} onBlur={(e) => upd({ yearStart: e.target.value })} /></Field>
           <Field label="Konec roku"><input type="date" className="input" defaultValue={settings.yearEnd} onBlur={(e) => upd({ yearEnd: e.target.value })} /></Field>
+          <Field label="Konec 1. čtvrtletí"><input type="date" className="input" defaultValue={q1End(settings)} onBlur={(e) => upd({ q1End: e.target.value })} /></Field>
           <Field label="Konec 1. pololetí"><input type="date" className="input" defaultValue={settings.term1End ?? `${settings.yearEnd.slice(0, 4)}-01-31`} onBlur={(e) => upd({ term1End: e.target.value })} /></Field>
+          <Field label="Konec 3. čtvrtletí"><input type="date" className="input" defaultValue={q3End(settings)} onBlur={(e) => upd({ q3End: e.target.value })} /></Field>
           <Field label="Odkaz na Školu online"><input className="input" defaultValue={settings.skolaOnlineUrl} onBlur={(e) => upd({ skolaOnlineUrl: e.target.value })} /></Field>
           <Field label="Výchozí předmět" className="md:col-span-3">
             <select className="input w-auto" value={settings.defaultSubjectId ?? ''} onChange={(e) => upd({ defaultSubjectId: Number(e.target.value) || undefined })}>{subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>

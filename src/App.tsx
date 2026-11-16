@@ -23,6 +23,7 @@ import { AttendancePage } from './pages/Attendance'
 import { PrintReportPage } from './pages/PrintReport'
 import { SeatingPage } from './pages/Seating'
 import { WorkReportPage } from './pages/WorkReport'
+import { ClassReportPage } from './pages/ClassReport'
 
 export default function App() {
   const [ready, setReady] = useState(false)
@@ -73,6 +74,7 @@ export default function App() {
           <Route path="rozvrh" element={<TimetablePage />} />
           <Route path="dochazka" element={<AttendancePage />} />
           <Route path="tisk" element={<PrintReportPage />} />
+          <Route path="report" element={<ClassReportPage />} />
           <Route path="zasedaci" element={<SeatingPage />} />
           <Route path="vykaz" element={<WorkReportPage />} />
           <Route path="import" element={<ImportPage />} />

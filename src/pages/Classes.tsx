@@ -118,6 +118,7 @@ export function ClassesPage() {
                   <Link to={`/zasedaci?classId=${selectedClass.id}`} className="btn-secondary btn-sm"><Armchair size={14} /> Zasedací pořádek</Link>
                   <Link to={`/dochazka?classId=${selectedClass.id}`} className="btn-secondary btn-sm"><CalendarCheck size={14} /> Docházka</Link>
                   <Link to={`/tisk?classId=${selectedClass.id}`} className="btn-secondary btn-sm"><Printer size={14} /> Podklady na schůzky</Link>
+                  <Link to={`/report?classId=${selectedClass.id}`} className="btn-secondary btn-sm"><Printer size={14} /> Report na třídní schůzky</Link>
                   <button className="btn-secondary btn-sm" onClick={() => setClassDraft({ ...selectedClass })}>Upravit</button>
                   <button className="btn-primary btn-sm" onClick={() => setGroupDraft({ name: '', gradeLevel: selectedClass.gradeLevel, subjectId: subjects[0]?.id, studentIds: [], color: COLORS[gradeGroups.length % COLORS.length] })}><Plus size={14} /> Nová skupina</button>
                   <ConfirmButton onConfirm={async () => { const err = await deleteClass(selectedClass.id); if (err) alert(err); else setParams({}) }}>Smazat třídu</ConfirmButton>
