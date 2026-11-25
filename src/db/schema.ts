@@ -248,6 +248,8 @@ export interface StoredDocument {
 export interface WorkDay {
   start?: string // "7:30"
   direct?: number // přímá ped. práce (hodiny)
+  /** hodiny přímé práce nad úvazek podle rozvrhu – ve výkazu „5+1“ */
+  directPlus?: number
   related?: number // práce související
   extra?: number // přespočetné hodiny (suplování)
   end?: string
@@ -300,6 +302,8 @@ export interface TimetableSlot {
   duringLesson?: boolean
   /** Spojené skupiny (např. obě skupiny Aj, když kolegyně chybí) – žáci se přidají k docházce */
   extraGroupIds?: number[]
+  /** Hodina nad úvazek (přespočetná podle rozvrhu) – ve výkazu se píše jako „5+1“ */
+  overLoad?: boolean
 }
 
 /**

@@ -8,7 +8,7 @@ import { Field, PageHeader, Toast, useToast } from '../components/ui'
 import { SettingsTabs } from '../components/Layout'
 import { WEEKDAYS_SHORT, fmtDate, todayISO } from '../lib/format'
 import { holidayName, schoolHolidayName } from '../lib/holidays'
-import { WORK_CODES, WORK_CODE_LABEL, addHours, autoFillMonth, dateOf, daysInMonth, fillTemplate, monthTotals, workdaySpan } from '../lib/workReport'
+import { WORK_CODES, WORK_CODE_LABEL, addHours, dayWorked, directLabel, parseDirect, autoFillMonth, dateOf, daysInMonth, fillTemplate, monthTotals, workdaySpan } from '../lib/workReport'
 import { downloadBlob } from '../lib/backup'
 
 const thisMonth = () => todayISO().slice(0, 7)
@@ -113,7 +113,7 @@ export function WorkReportPage() {
             <Field label="Pracovní zařazení"><input className="input" value={draft.position} onChange={(e) => setHeader({ position: e.target.value })} placeholder="učitel" /></Field>
             <Field label="Osobní číslo"><input className="input" value={draft.personalNumber} onChange={(e) => setHeader({ personalNumber: e.target.value })} /></Field>
             <Field label="Pracovní úvazek"><input className="input" value={draft.workload} onChange={(e) => setHeader({ workload: e.target.value })} placeholder="1,0" /></Field>
-            <div className="text-xs text-slate-500 self-end">Odpracované dny: <b>{totals?.workedDays}</b> · přímá ped. práce: <b>{totals?.direct} h</b> · přespočetné: <b>{totals?.extra} h</b></div>
+            <div className="text-xs text-slate-500 self-end">Odpracované dny: <b>{totals?.workedDays}</b> · přímá ped. práce: <b>{totals ? directLabel(totals.direct, totals.directPlus) : ''} h</b> · přespočetné: <b>{totals?.extra} h</b></div>
           </div>
         )}
       </div>
@@ -131,13 +131,14 @@ export function WorkReportPage() {
                     <tr key={d} className={bg}>
                       <td className="font-medium">{d}. <span className="text-slate-400">{info.wdShort}</span>{info.holiday && <span className="ml-1 text-rose-700" title={info.holiday}>svátek</span>}{info.vacation && !info.holiday && <span className="ml-1 text-emerald-700">{info.vacation}</span>}</td>
                       <td>{cell(d, 'start', 'time', 'w-16')}</td>
-                      <td>{cell(d, 'direct', 'number')}</td>
+                      <td><input key={`dir-${month}-${d}-${directLabel(day.direct, day.directPlus)}`} className="input px-1 py-0.5 text-xs w-14" defaultValue={directLabel(day.direct, day.directPlus)} title="Např. 5 nebo 5+1 (hodina nad úvazek)"
+                        onBlur={(e) => { const p = parseDirect(e.target.value); if (!p) { e.target.value = directLabel(day.direct, day.directPlus); return } if (p.direct !== day.direct || p.plus !== day.directPlus) setDay(d, { direct: p.direct, directPlus: p.plus }) }} /></td>
                       <td>{cell(d, 'related', 'number')}</td>
                       <td>{cell(d, 'extra', 'number')}</td>
-                      <td>{cell(d, 'end', 'time', 'w-16')}<button className="ml-1 text-[10px] text-blue-700 hover:underline" title="Dopočítat konec = začátek + odpracované hodiny + oběd" onClick={() => { if (!day.start) return; const sp = workdaySpan(settings, new Date(dateOf(month, d)).getDay()); setDay(d, { end: addHours(day.start, ((day.direct ?? 0) + (day.related ?? 0) || sp.hours) + sp.lunch / 60) }) }}>=</button></td>
+                      <td>{cell(d, 'end', 'time', 'w-16')}<button className="ml-1 text-[10px] text-blue-700 hover:underline" title="Dopočítat konec = začátek + odpracované hodiny + oběd" onClick={() => { if (!day.start) return; const sp = workdaySpan(settings, new Date(dateOf(month, d)).getDay()); setDay(d, { end: addHours(day.start, (dayWorked(day) || sp.hours) + sp.lunch / 60) }) }}>=</button></td>
                       <td><select className="input px-1 py-0.5 text-xs w-20" value={day.code ?? ''} onChange={(e) => setDay(d, { code: e.target.value || undefined })}><option value="">—</option>{WORK_CODES.map((c) => <option key={c} value={c}>{c} – {WORK_CODE_LABEL[c]}</option>)}</select></td>
                       <td>{cell(d, 'codeNote', 'text', 'w-24')}</td>
-                      <td className="text-center text-slate-600">{(day.direct ?? 0) + (day.related ?? 0) || ''}</td>
+                      <td className="text-center text-slate-600">{dayWorked(day) || ''}</td>
                       <td>{cell(d, 'overtime', 'number')}</td>
                       <td>{cell(d, 'activityHours', 'number')}</td>
                       <td>{cell(d, 'activityName', 'text', 'w-32')}</td>
@@ -146,7 +147,7 @@ export function WorkReportPage() {
                   )
                 })}
               </tbody>
-              <tfoot><tr className="font-semibold"><td>Celkem</td><td></td><td className="px-2">{totals?.direct}</td><td className="px-2">{totals?.related}</td><td className="px-2">{totals?.extra}</td><td></td><td colSpan={2} className="text-slate-500 font-normal">{Object.entries(totals?.codes ?? {}).map(([c, k]) => `${c}: ${k}`).join(', ')}</td><td className="text-center">{totals?.worked}</td><td className="px-2">{totals?.overtime}</td><td className="px-2">{totals?.activity}</td><td colSpan={2}></td></tr></tfoot>
+              <tfoot><tr className="font-semibold"><td>Celkem</td><td></td><td className="px-2">{totals ? directLabel(totals.direct, totals.directPlus) : ''}</td><td className="px-2">{totals?.related}</td><td className="px-2">{totals?.extra}</td><td></td><td colSpan={2} className="text-slate-500 font-normal">{Object.entries(totals?.codes ?? {}).map(([c, k]) => `${c}: ${k}`).join(', ')}</td><td className="text-center">{totals?.worked}</td><td className="px-2">{totals?.overtime}</td><td className="px-2">{totals?.activity}</td><td colSpan={2}></td></tr></tfoot>
             </table>
             <p className="px-4 py-2 text-xs text-slate-400">Automatické vyplnění: přímá ped. práce = počet odučených hodin z rozvrhu (bez odpadlých), přespočetné = suplování, související = denní hodiny − přímá, kroužek = mimoškolní aktivita, svátek = Sv, prázdniny = kód z Nastavení. Výchozí začátek a denní hodiny nastavíte v Nastavení.</p>
           </div>
@@ -171,7 +172,7 @@ function PrintSheet({ draft, month, n, dayInfo, totals }: { draft: Omit<WorkMont
     const td = (v: unknown) => <td className="border border-black px-1 text-center h-5">{v == null || v === '' ? '' : String(v)}</td>
     return (
       <tr key={d} className="text-[10px]">
-        {td(d)}{td(day.start)}{td(day.direct)}{td(day.related)}{td(day.extra)}{td(day.end)}{td(day.code ? `${day.code}${day.codeNote ? ` ${day.codeNote}` : ''}` : '')}{td((day.direct ?? 0) + (day.related ?? 0) || '')}{td(day.overtime)}{td(day.activityHours)}{td(day.activityName)}{td(day.webinar)}
+        {td(d)}{td(day.start)}{td(directLabel(day.direct, day.directPlus))}{td(day.related)}{td(day.extra)}{td(day.end)}{td(day.code ? `${day.code}${day.codeNote ? ` ${day.codeNote}` : ''}` : '')}{td(dayWorked(day) || '')}{td(day.overtime)}{td(day.activityHours)}{td(day.activityName)}{td(day.webinar)}
       </tr>
     )
   }
@@ -190,7 +191,7 @@ function PrintSheet({ draft, month, n, dayInfo, totals }: { draft: Omit<WorkMont
       <div>
         <table className="w-full border-collapse"><thead>{head}</thead><tbody>
           {Array.from({ length: Math.max(0, n - 15) }, (_, i) => row(i + 16))}
-          <tr className="text-[10px] font-semibold"><td className="border border-black px-1">Celkem</td><td className="border border-black" /><td className="border border-black text-center">{totals.direct}</td><td className="border border-black text-center">{totals.related}</td><td className="border border-black text-center">{totals.extra}</td><td className="border border-black" /><td className="border border-black" /><td className="border border-black text-center">{totals.worked}</td><td className="border border-black text-center">{totals.overtime}</td><td className="border border-black text-center">{totals.activity}</td><td className="border border-black" /><td className="border border-black" /></tr>
+          <tr className="text-[10px] font-semibold"><td className="border border-black px-1">Celkem</td><td className="border border-black" /><td className="border border-black text-center">{directLabel(totals.direct, totals.directPlus)}</td><td className="border border-black text-center">{totals.related}</td><td className="border border-black text-center">{totals.extra}</td><td className="border border-black" /><td className="border border-black" /><td className="border border-black text-center">{totals.worked}</td><td className="border border-black text-center">{totals.overtime}</td><td className="border border-black text-center">{totals.activity}</td><td className="border border-black" /><td className="border border-black" /></tr>
         </tbody></table>
         <p className="mt-2 text-[9px]">Pozn.: D – dovolená, Sa – samostudium, Sv – svátek, L – lékař, OČR – ošetřování člena rodiny</p>
         <div className="mt-4 flex justify-between text-[10px]">

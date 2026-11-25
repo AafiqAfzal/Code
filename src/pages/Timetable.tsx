@@ -177,6 +177,7 @@ export function TimetablePage() {
                               {e.kind === 'krouzek' && e.timeFrom && e.timeTo && <div className="text-[10px] opacity-90">{e.timeFrom}–{e.timeTo}</div>}
                               <div className="truncate px-1">{gName(e) || (e.kind === 'suplovani' || e.kind === 'krouzek' ? '' : e.title) || ''}</div>
                               {e.room && <div className="opacity-80">uč. {e.room}</div>}
+                              {e.slot?.overLoad && e.kind === 'hodina' && <div className="text-[10px] font-semibold opacity-90" title="Hodina nad úvazek – ve výkazu „+1“">+1 nad úvazek</div>}
                               {logFor(date, e) && e.status !== 'cancelled' && <div className="mt-0.5 inline-flex items-center gap-0.5 rounded bg-white/80 px-1 text-[10px] text-green-700" title={logFor(date, e)!.topic}><Check size={10} /> zapsáno</div>}
                               {es.length > 1 && <div className="text-[10px] text-amber-700 no-underline">+ supl.</div>}
                             </>
@@ -294,6 +295,10 @@ export function TimetablePage() {
               {slotDraft.kind === 'krouzek' && <p className="mt-1 text-xs text-slate-500">Skupinu kroužku napříč ročníky založíte v Třídy a skupiny → „Nový kroužek“. Pak půjde zapisovat docházku i zápisy z hodin.</p>}
             </Field>
             <Field label="Učebna"><input className="input" value={slotDraft.room ?? ''} onChange={(e) => setSlotDraft({ ...slotDraft, room: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && saveSlot()} /></Field>
+            {(slotDraft.kind ?? 'hodina') === 'hodina' && (
+              <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-0.5" checked={!!slotDraft.overLoad} onChange={(e) => setSlotDraft({ ...slotDraft, overLoad: e.target.checked || undefined })} />
+                <span>Hodina nad úvazek (přespočetná podle rozvrhu)<span className="block text-xs text-slate-500">Ve výkazu práce se zapíše jako „5+1“ a nepočítá se do související práce.</span></span></label>
+            )}
             {slotDraft.kind === 'krouzek' && (
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Vlastní začátek (nepovinné)"><input className="input" value={slotDraft.timeFrom ?? ''} onChange={(e) => setSlotDraft({ ...slotDraft, timeFrom: e.target.value || undefined })} placeholder={`standardně ${lessonRange(slotDraft.lessonNumber).split('–')[0]}`} /></Field>
