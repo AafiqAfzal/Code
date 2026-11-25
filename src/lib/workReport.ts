@@ -180,7 +180,8 @@ export async function fillTemplate(template: Blob, header: FillHeader, days: Rec
     set(col('B', 'R'), timeToFraction(day.start))
     set(col('C', 'S'), day.directPlus ? (day.direct ?? 0) + day.directPlus : day.direct)
     // „5+1“: v buňce je součet (aby seděly vzorce šablony), zobrazí se ale jako 5+1
-    if (day.directPlus) ws.getCell(col('C', 'S')).numFmt = `"${directLabel(day.direct, day.directPlus)}"`
+    // styl buňky je v šabloně sdílený s dalšími buňkami – změnit jen kopii pro tuto buňku
+    if (day.directPlus) { const c = ws.getCell(col('C', 'S')); c.style = { ...c.style, numFmt: `"${directLabel(day.direct, day.directPlus)}"` } }
     set(col('D', 'T'), day.related)
     set(col('F', 'W'), day.extra)
     set(col('G', 'X'), timeToFraction(day.end))

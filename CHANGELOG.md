@@ -1,5 +1,9 @@
 # Změny
 
+## Připravovaná verze
+
+- Export výkazu do školní šablony: „5+1“ se zobrazí jen u dne s hodinou nad úvazek (dřív se kvůli sdílenému formátu buněk šablony ukázalo u všech dnů i ve sloupci přespočetných hodin)
+
 ## 3.4.0
 
 - Pracovní výkaz: přímá práce zahrnuje i suplování; přespočetné hodiny se vyrovnávají za týden – zapíšou se jen tehdy, když týden přesáhne normální týden podle rozvrhu (odpadlá hodina a suplování ve stejném týdnu se vyruší), a to ke dni se suplováním; související práce = odpracováno − přímá − hodiny nad úvazek − kroužky (konverzace)
