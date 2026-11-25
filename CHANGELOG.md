@@ -2,7 +2,7 @@
 
 ## Připravovaná verze
 
-- Pracovní výkaz: související (nepřímá) práce = odpracováno − přímá − hodiny nad úvazek − suplování − kroužky (dřív se kroužek/konverzace a suplování neodečítaly, např. úterý 4/5 místo 4/4); odpracované hodiny dne zahrnují vše
+- Pracovní výkaz: přímá práce zahrnuje i suplování; přespočetné hodiny se vyrovnávají za týden – zapíšou se jen tehdy, když týden přesáhne normální týden podle rozvrhu (odpadlá hodina a suplování ve stejném týdnu se vyruší), a to ke dni se suplováním; související práce = odpracováno − přímá − hodiny nad úvazek − kroužky (konverzace)
 - Rozvrh: u pravidelné hodiny lze zaškrtnout „Hodina nad úvazek“ – ve výkazu se přímá práce píše „5+1“ (i v součtu, tisku a v šabloně Excelu, kde buňka obsahuje součet a zobrazí se jako 5+1); do políčka přímé práce lze psát i ručně „5+1“
 - Obnova ze zálohy v desktopové verzi: soubor se vybírá oknem Windows, které načte i zálohu z flashky nebo z OneDrivu (dřív se takový soubor někdy nepřečetl a nestalo se nic); každá chyba při obnově se teď ukáže s radou
 

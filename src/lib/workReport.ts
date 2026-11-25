@@ -56,10 +56,57 @@ export interface AutoFillInput {
   settings?: Settings
 }
 
-/** Vyplní dny měsíce podle rozvrhu, svátků a prázdnin. Víkendy zůstanou prázdné. */
+/** Je den pracovní (ne víkend, svátek ani prázdniny)? */
+const isWorkingDay = (date: string, schoolHolidays: SchoolHoliday[]) => {
+  const wd = new Date(date).getDay()
+  return wd !== 0 && wd !== 6 && !holidayName(date) && !schoolHolidayName(date, schoolHolidays)
+}
+
+/** Co se daný den podle rozvrhu a výjimek skutečně odučilo */
+function lessonsOn(date: string, slots: TimetableSlot[], changes: TimetableChange[]) {
+  const active = activeLessons(scheduleForDate(date, slots, changes))
+  const lessons = active.filter((e) => e.kind === 'hodina')
+  const plus = lessons.filter((e) => e.slot?.overLoad).length // hodiny nad úvazek („+1“)
+  const supl = active.filter((e) => e.kind === 'suplovani').length // suplování / hodina navíc
+  const clubs = active.filter((e) => e.kind === 'krouzek')
+  return { direct: lessons.length - plus + supl, plus, supl, clubs }
+}
+
+/** Kolik hodin by se ten den učilo v normálním týdnu (pravidelný rozvrh, bez výjimek) */
+function normalLessonsOn(date: string, slots: TimetableSlot[]) {
+  const wd = new Date(date).getDay()
+  return slots.filter((s) => s.weekday === wd && (s.kind ?? 'hodina') === 'hodina').length
+}
+
+/**
+ * Vyplní dny měsíce podle rozvrhu, svátků a prázdnin. Víkendy zůstanou prázdné.
+ * Přímá práce = odučené hodiny včetně suplování („5+1“ = hodina nad úvazek).
+ * Přespočetné hodiny se vyrovnávají za týden: jen to, o co týden přesáhl normální týden
+ * (odpadlá hodina a suplování ve stejném týdnu se vyruší); připíšou se ke dnům se suplováním.
+ */
 export function autoFillMonth({ month, slots, changes, schoolHolidays, settings }: AutoFillInput): Record<number, WorkDay> {
   const vacationCode = settings?.epdVacationCode ?? 'Sa'
   const out: Record<number, WorkDay> = {}
+  // přespočetné hodiny po týdnech (týden může zasahovat do sousedního měsíce)
+  const extraByDate = new Map<string, number>()
+  const weekDone = new Set<string>()
+  const weekOf = (date: string) => { const d = new Date(date + 'T12:00:00'); const wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd); return d }
+  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  for (let d = 1; d <= daysInMonth(month); d++) {
+    const mon = weekOf(dateOf(month, d)); const key = iso(mon)
+    if (weekDone.has(key)) continue
+    weekDone.add(key)
+    const days = Array.from({ length: 5 }, (_, i) => { const x = new Date(mon); x.setDate(mon.getDate() + i); return iso(x) }).filter((x) => isWorkingDay(x, schoolHolidays))
+    const normal = days.reduce((n, x) => n + normalLessonsOn(x, slots), 0)
+    const actual = days.map((x) => ({ date: x, ...lessonsOn(x, slots, changes) }))
+    let over = Math.max(0, actual.reduce((n, a) => n + a.direct + a.plus, 0) - normal)
+    // od konce týdne: přebytek vzniká až tím, co se odučilo navíc
+    for (const a of [...actual].reverse()) {
+      if (!over) break
+      const k = Math.min(over, a.supl)
+      if (k) { extraByDate.set(a.date, k); over -= k }
+    }
+  }
   for (let d = 1; d <= daysInMonth(month); d++) {
     const date = dateOf(month, d)
     const wd = new Date(date).getDay() // 0 = neděle
@@ -67,17 +114,11 @@ export function autoFillMonth({ month, slots, changes, schoolHolidays, settings 
     if (holidayName(date)) { out[d] = { code: 'Sv' }; continue }
     if (schoolHolidayName(date, schoolHolidays)) { out[d] = vacationCode ? { code: vacationCode } : {}; continue }
     const { start, end, hours: daily } = workdaySpan(settings, wd)
-    const sched = scheduleForDate(date, slots, changes)
-    const active = activeLessons(sched)
-    const lessons = active.filter((e) => e.kind === 'hodina')
-    // hodiny nad úvazek (v rozvrhu označené) se píší zvlášť: „5+1“
-    const plus = lessons.filter((e) => e.slot?.overLoad).length
-    const direct = lessons.length - plus
-    const extra = active.filter((e) => e.kind === 'suplovani').length
-    const clubs = active.filter((e) => e.kind === 'krouzek')
+    const { direct, plus, clubs } = lessonsOn(date, slots, changes)
+    const extra = extraByDate.get(date) ?? 0
     const dayOff = changes.find((c) => c.date === date && c.kind === 'odpada' && c.lessonNumber == null)
-    // související (nepřímá) práce = odpracováno − přímá − nad úvazek − suplování − kroužky (konverzace)
-    const day: WorkDay = { start, direct, related: Math.max(0, daily - direct - plus - extra - clubs.length), end }
+    // související (nepřímá) práce = odpracováno − přímá (vč. suplování) − nad úvazek − kroužky (konverzace)
+    const day: WorkDay = { start, direct, related: Math.max(0, daily - direct - plus - clubs.length), end }
     if (plus) day.directPlus = plus
     if (extra) day.extra = extra
     if (clubs.length) { day.activityHours = clubs.length; day.activityName = clubs.map((c) => c.title || 'kroužek').join(', ') }
@@ -87,9 +128,9 @@ export function autoFillMonth({ month, slots, changes, schoolHolidays, settings 
   return out
 }
 
-/** Odpracované hodiny dne = přímá (+ nad úvazek) + související + suplování + kroužky */
+/** Odpracované hodiny dne = přímá (vč. suplování, + nad úvazek) + související + kroužky; přespočetné jsou jen informace, kolik z přímé je navíc */
 export function dayWorked(d: WorkDay): number {
-  return (d.direct ?? 0) + (d.directPlus ?? 0) + (d.related ?? 0) + (d.extra ?? 0) + (d.activityHours ?? 0)
+  return (d.direct ?? 0) + (d.directPlus ?? 0) + (d.related ?? 0) + (d.activityHours ?? 0)
 }
 
 /** Přímá práce, jak se píše do výkazu: „5“ nebo „5+1“ */
